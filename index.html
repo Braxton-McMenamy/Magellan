@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My Site</title>
+  <meta name="description" content="A short description of my site.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/">My Site</a>
+    <nav aria-label="Main">
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Your headline goes here</h1>
+      <p>One or two sentences that say what this site is and who it's for.</p>
+      <a class="button" href="#contact">Get in touch</a>
+    </section>
+
+    <section id="about">
+      <h2>About</h2>
+      <p>Replace this text with your own. Edit <code>index.html</code>, save, and refresh the page to see changes.</p>
+    </section>
+
+    <section id="contact">
+      <h2>Contact</h2>
+      <p><a href="mailto:you@example.com">you@example.com</a></p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>&copy; <span id="year">2026</span> My Site</p>
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+</body>
+</html>
