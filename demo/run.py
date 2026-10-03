@@ -11,7 +11,7 @@ and marks each expected rule:
     waiting   nobody has written that rule yet -- see TODO(checklist) in magellan_lite/rules
     MISSED    the rule exists but stayed quiet: a bug to fix
 
-TODO(site): show these results on the website (index.html, Braxton's). See main() below.
+TODO(site): show these results on the website (site/, Braxton's). See main() below.
 """
 
 from __future__ import annotations
@@ -121,7 +121,8 @@ def main(argv: list[str] | None = None) -> int:
     #   verdict, status, rules, findings). Agree the format with Braxton, then write it here,
     #   e.g. json.dump(results, ...) to a file the page reads. Opening index.html straight from
     #   disk can't fetch() a JSON file; a .js file that sets a global (`window.X = [...]`) can
-    #   be loaded with <script>, or serve the folder with `python -m http.server`.
+    #   be loaded with <script>, or serve the folder with
+    #   `python -m http.server 8000 --directory site`.
     return 1 if tally.get("MISSED") else 0
 
 

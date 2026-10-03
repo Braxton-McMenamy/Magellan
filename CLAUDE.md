@@ -13,7 +13,7 @@ of three; each teammate uses their own Claude Code.
 - **Stay in your lane.** Each task is a `TODO(<tag>)` in the file where the work goes. Don't
   rewrite files outside the task. `findings.py` and `report.py` are the shared contract: change
   them only when the team agrees.
-- **The website is Braxton's** (`index.html`, `style.css` at the root). Python work doesn't
+- **The website is Braxton's** (`site/`). Python work doesn't
   edit it; where the backend should feed it, leave a `TODO(site)`.
 - **Tests before done:** `python -m unittest discover -s tests -t .` passes, and
   `python demo/run.py` shows no MISSED.

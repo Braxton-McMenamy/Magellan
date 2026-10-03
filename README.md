@@ -15,7 +15,7 @@ python demo/run.py                     # famous failures, replayed (the demo and
 python -m unittest discover -s tests -t .
 ```
 
-The project page is `index.html` at the root: see [Website](#website).
+The project page is `site/index.html`: see [Website](#website).
 
 ## How it works
 
@@ -73,22 +73,22 @@ magellan_lite/
   rules/        the checklist, one file per rule
 tests/          unittest; tests/helpers.py makes throwaway git repositories
 demo/           incidents/ (famous failures as git histories) and run.py (the scoreboard)
-index.html      the project page (Braxton's): plain HTML and CSS, no build step
-style.css
+site/           the project page (Braxton's): plain HTML and CSS, no build step
 ```
 
 ## Website
 
-Plain HTML and CSS, no build step, no dependencies. Open `index.html` in a browser, or serve
-the folder:
+Plain HTML and CSS in `site/`, no build step, no dependencies. Open `site/index.html` in a
+browser, or serve the folder:
 
 ```sh
-python -m http.server 8000
+python -m http.server 8000 --directory site
 ```
 
-then visit <http://localhost:8000>. To host it free on GitHub Pages: repository Settings >
-Pages > deploy from the `main` branch. It can also be copied to any web server's document
-root.
+then visit <http://localhost:8000>. It can be copied to any web server's document root. GitHub
+Pages deploys a branch only from the repository root or a `docs/` folder, so to host it there,
+either publish `site/` with a Pages workflow (`actions/upload-pages-artifact` and
+`actions/deploy-pages`) or rename the folder to `docs/`.
 
 ## Honest limits
 
