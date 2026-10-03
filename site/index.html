@@ -1,45 +1,155 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>My Site</title>
-  <meta name="description" content="A short description of my site.">
-  <link rel="stylesheet" href="style.css">
+  <title>Magellan Lite</title>
+  <meta name="description" content="Know what your change breaks before you commit it.">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- TODO(starter): a favicon (the little icon in the browser tab). Make a 64x64 PNG or an
+       SVG of the ◆ logo, save it as site/favicon.svg (or .png), and add here:
+       <link rel="icon" href="favicon.svg"> -->
 </head>
 <body>
-  <header class="site-header">
-    <a class="brand" href="/">My Site</a>
-    <nav aria-label="Main">
-      <a href="#about">About</a>
-      <a href="#contact">Contact</a>
+  <header class="nav">
+    <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">◆</span> Magellan Lite</a>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#incidents">Incidents</a>
+      <a href="#try">Try it</a>
+      <a href="#team">Team</a>
     </nav>
   </header>
 
-  <main>
+  <main id="top">
     <section class="hero">
-      <h1>Your headline goes here</h1>
-      <p>One or two sentences that say what this site is and who it's for.</p>
-      <a class="button" href="#contact">Get in touch</a>
+      <div class="hero-text">
+        <p class="eyebrow">A pre-commit check for Python</p>
+        <h1>Know what your change breaks <em>before</em> you commit it.</h1>
+        <p class="lede">Magellan Lite maps your code from its syntax trees, finds exactly what a
+          change touched, and runs a checklist built from real software disasters. One verdict:
+          <span class="verdict ok">ok</span> <span class="verdict review">review</span>
+          <span class="verdict block">block</span>.</p>
+        <div class="cta">
+          <a class="button primary" href="#incidents">See it catch real failures</a>
+          <a class="button" href="#try">Run it on your code</a>
+        </div>
+      </div>
+      <!-- TODO(site): replace this static sample with a recording of the real demo
+           (Knight Capital 2005, step 2) once loop-without-progress lands. -->
+      <pre class="terminal" aria-label="Sample output"><span class="t-dim">$ magellan-lite check</span>
+<span class="t-block">magellan-lite: BLOCK</span> · 1 finding · 2 changes in 2 files
+
+  changes
+    body  smars.power_peg.power_peg  smars/power_peg.py:9
+    body  smars.router.route         smars/router.py:7
+
+  checklist
+    [ ] HIGH     loop-without-progress  smars/power_peg.py:12
+        the loop at line 12 can never end
+        fix: make every path change what the
+             condition reads, or leave the loop</pre>
     </section>
 
-    <section id="about">
-      <h2>About</h2>
-      <p>Replace this text with your own. Edit <code>index.html</code>, save, and refresh the page to see changes.</p>
+    <section class="problem" aria-labelledby="problem-title">
+      <h2 id="problem-title">The dangerous change is rarely the one you're looking at</h2>
+      <div class="cards three">
+        <article class="card stat">
+          <p class="big">$460M</p>
+          <p>in 45 minutes. Knight Capital's order router woke up code that a 2005 change had
+            left unable to stop.</p>
+          <p class="source">SEC Release 34-70694</p>
+        </article>
+        <article class="card stat">
+          <p class="big">8.5M</p>
+          <p>Windows machines crashed when a content update reached code that read one field
+            past its input.</p>
+          <p class="source">CrowdStrike root cause analysis, 2024</p>
+        </article>
+        <article class="card stat">
+          <p class="big">27 min</p>
+          <p>of global outage from one regular expression that took super-linear time on every
+            server at once.</p>
+          <p class="source">Cloudflare, July 2 2019</p>
+        </article>
+      </div>
     </section>
 
-    <section id="contact">
-      <h2>Contact</h2>
-      <p><a href="mailto:you@example.com">you@example.com</a></p>
+    <section id="how" aria-labelledby="how-title">
+      <h2 id="how-title">How it works</h2>
+      <ol class="steps">
+        <li class="card">
+          <h3><span class="num">1</span> Map</h3>
+          <p>Every function, method, class and constant, named stably and hashed from its syntax
+            tree. Reformatting, moving code or switching line endings is never a change.</p>
+        </li>
+        <li class="card">
+          <h3><span class="num">2</span> Diff</h3>
+          <p>Compare with the last commit (or any baseline): what was added, removed, or had its
+            signature, body or value changed.</p>
+        </li>
+        <li class="card">
+          <h3><span class="num">3</span> Check</h3>
+          <p>Run the checklist on exactly what changed, so old problems elsewhere stay quiet.
+            Each rule comes from a failure that really happened.</p>
+        </li>
+      </ol>
+      <!-- TODO(site): the blast-radius graph. When report.affected is filled (TODO(engine)),
+           draw the changed definition and what it reaches as rings fading with distance, the
+           worst hit pulsing. Plain SVG is enough; no library needed. -->
+    </section>
+
+    <section id="incidents" aria-labelledby="incidents-title">
+      <div class="section-head">
+        <h2 id="incidents-title">Famous failures, replayed change by change</h2>
+        <p id="incidents-summary" class="muted">Loading…</p>
+      </div>
+      <div id="incident-list" class="incident-list"></div>
+      <p class="muted small">Regenerate with <code>python demo/run.py</code>. Ports of code that is
+        not public say so. Static analysis: a clean report is not proof.</p>
+    </section>
+
+    <section id="try" aria-labelledby="try-title">
+      <h2 id="try-title">Try it</h2>
+      <div class="cards two">
+        <article class="card">
+          <h3>Run it</h3>
+          <pre class="code">pip install -e .
+magellan-lite check            # against your last commit
+magellan-lite check --format json &gt; report.json</pre>
+        </article>
+        <article class="card">
+          <h3>Read a report</h3>
+          <p>Open a <code>report.json</code> to see its verdict and checklist here.</p>
+          <label class="file">
+            <input id="report-file" type="file" accept=".json,application/json">
+            <span>Choose report.json</span>
+          </label>
+          <div id="report-view" class="report-view" aria-live="polite"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="team" aria-labelledby="team-title">
+      <h2 id="team-title">Team</h2>
+      <!-- TODO(starter): put in your names, and one line each on what you built.
+           Plain HTML: change the text inside each <h3> and <p> below. Open index.html in a
+           browser to see it (refresh after saving). -->
+      <div class="cards three">
+        <article class="card person"><h3>Brayton</h3><p class="muted">Engine: map, diff, blast radius</p></article>
+        <article class="card person"><h3>Teammate</h3><p class="muted">Checklist rules</p></article>
+        <article class="card person"><h3>Teammate</h3><p class="muted">Developer experience</p></article>
+      </div>
     </section>
   </main>
 
-  <footer class="site-footer">
-    <p>&copy; <span id="year">2026</span> My Site</p>
+  <footer class="footer">
+    <p>Magellan Lite · built at a hackathon ·
+      <a href="https://github.com/Braxton-McMenamy/Magellan">source on GitHub</a> ·
+      static analysis: a clean report is not proof.</p>
   </footer>
 
-  <script>
-    document.getElementById("year").textContent = new Date().getFullYear();
-  </script>
+  <script src="data/incidents.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
