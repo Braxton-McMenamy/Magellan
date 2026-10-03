@@ -1,0 +1,32 @@
+{
+  "title": "Knight Capital, August 1 2012: $460 million in 45 minutes",
+  "what_happened": "SMARS, Knight's order router, still contained 'Power Peg', unused since 2003. Power Peg sent child orders until a cumulative-fill counter said the parent order was filled; a 2005 change moved that counting earlier in the order flow, so Power Peg could no longer stop. In 2012 new Retail Liquidity Program (RLP) code replaced it and reused its flag. A technician did not copy the new code to one of eight servers; orders carrying the reused flag woke Power Peg up there and it sent millions of orders.",
+  "sources": [
+    "SEC Release No. 34-70694, In the Matter of Knight Capital Americas LLC (2013)"
+  ],
+  "language": "Python port (SMARS's source and language are not public).",
+  "out_of_reach": "The deployment that skipped one of eight servers is a release failure no source analysis can see; what the code shows is the loop that cannot stop and the flag handed to a new meaning.",
+  "args": [
+    "--closed-world"
+  ],
+  "steps": [
+    {
+      "dir": "1-2003-power-peg-in-use",
+      "what": "Power Peg in use: it stops once the fills reach the order quantity."
+    },
+    {
+      "dir": "2-2005-fill-tracking-moved",
+      "what": "Fill tracking moves out of Power Peg's loop to the start of routing.",
+      "expect": [
+        "loop-without-progress"
+      ]
+    },
+    {
+      "dir": "3-2012-rlp-reuses-the-flag",
+      "what": "RLP replaces Power Peg and takes over its flag value 0x08.",
+      "expect": [
+        "reused-value"
+      ]
+    }
+  ]
+}

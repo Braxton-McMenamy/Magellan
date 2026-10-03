@@ -1,0 +1,31 @@
+{
+  "title": "Microsoft Zune 30, December 31 2008: every device freezes on boot",
+  "what_happened": "The real-time-clock driver turned days since 1980 into a year with a loop that subtracts 365 or 366 days per year. On the last day of a leap year (day 366 of 2008) neither branch changed anything: the loop spun forever and the players hung at boot until the battery ran down.",
+  "sources": [
+    "Freescale MC13783 RTC driver, ConvertDays() in rtc.c, as published after the incident; Microsoft Zune support statement (January 2009)"
+  ],
+  "language": "Python port of the C driver.",
+  "args": [
+    "--closed-world"
+  ],
+  "steps": [
+    {
+      "dir": "1-clock-counts-days",
+      "what": "The clock counts days since 1980."
+    },
+    {
+      "dir": "2-days-to-year",
+      "what": "Convert the day count to a calendar year (the driver's ConvertDays).",
+      "expect": [
+        "loop-without-progress"
+      ]
+    },
+    {
+      "dir": "3-fix-break-on-day-366",
+      "what": "The fix: leave the loop on day 366 of a leap year.",
+      "expect_not": [
+        "loop-without-progress"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "title": "Cloudflare, July 2 2019: a WAF rule pins every CPU, 27-minute global outage",
+  "what_happened": "A new managed WAF rule shipped with a regular expression whose `.*(?:.*=.*)` part backtracks super-linearly. Rules deploy globally at once, so every edge server's CPU went to 100% matching HTTP requests against it.",
+  "sources": [
+    "Cloudflare blog, \"Details of the Cloudflare outage on July 2, 2019\" (July 12 2019), which quotes the regex"
+  ],
+  "language": "Python port (Cloudflare's WAF ran PCRE from Lua); the regex is verbatim.",
+  "args": [
+    "--closed-world"
+  ],
+  "steps": [
+    {
+      "dir": "1-managed-rules",
+      "what": "Three managed rules."
+    },
+    {
+      "dir": "2-new-xss-rule",
+      "what": "The new XSS rule, with the regex from Cloudflare's post-mortem.",
+      "expect": [
+        "regex-catastrophic-backtracking"
+      ]
+    }
+  ]
+}

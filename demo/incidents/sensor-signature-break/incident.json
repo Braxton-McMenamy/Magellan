@@ -1,0 +1,21 @@
+{
+  "title": "The sensor agent: a signature change breaks a file nobody touched",
+  "what_happened": "A three-file change adds a required `layout` argument to parse_record and drops the legacy collection mode. Every edited file is consistent. But collector.py, which nobody touched, still calls parse_record(row) with one argument -- inside `except Exception: pass`, so the TypeError is swallowed and the sweep silently returns nothing.",
+  "sources": [
+    "Magellan's worked example (examples/sensor and examples/after)"
+  ],
+  "language": "Python",
+  "steps": [
+    {
+      "dir": "1-before",
+      "what": "The agent as it stands."
+    },
+    {
+      "dir": "2-layout-argument",
+      "what": "parse_record gains a required layout argument; collector.py is not updated.",
+      "expect": [
+        "signature-break"
+      ]
+    }
+  ]
+}

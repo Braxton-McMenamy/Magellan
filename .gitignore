@@ -1,5 +1,21 @@
+# OS and editor clutter
 .DS_Store
 Thumbs.db
-node_modules/
-.env
 *.log
+.env
+
+# web
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# local only
+.claude/settings.local.json
+report.json

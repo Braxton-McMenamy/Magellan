@@ -1,0 +1,24 @@
+{
+  "title": "Windows Azure, February 29 2012: the leap-day outage",
+  "what_happened": "The guest agent in every new VM created a transfer certificate valid until \"the same date next year\", computed by adding one to the year. On February 29 2012 that date, February 29 2013, did not exist; certificate creation failed, VMs failed to start, hosts were marked faulty, and the failures cascaded across clusters for most of a day.",
+  "sources": [
+    "Microsoft, \"Summary of Windows Azure Service Disruption on Feb 29th, 2012\" (March 2012)"
+  ],
+  "language": "Python port of the guest agent's date arithmetic.",
+  "args": [
+    "--closed-world"
+  ],
+  "steps": [
+    {
+      "dir": "1-valid-for-365-days",
+      "what": "Certificates are valid for 365 days."
+    },
+    {
+      "dir": "2-same-date-next-year",
+      "what": "Valid until the same calendar date next year.",
+      "expect": [
+        "leap-day-date"
+      ]
+    }
+  ]
+}

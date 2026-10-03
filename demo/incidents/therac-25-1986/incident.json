@@ -1,0 +1,25 @@
+{
+  "title": "Therac-25, 1985-1987: radiation overdoses from a race condition",
+  "what_happened": "The operator could edit the prescription (beam mode and energy) while the treatment task was still setting up the magnets. The two tasks shared those values without synchronisation, so a quick edit was not seen by the setup task: the machine fired a high-current electron beam configured for X-ray mode. The Therac-20 had hardware interlocks that caught this; the Therac-25 relied on software alone. Six known accidents, at least three fatal.",
+  "sources": [
+    "Nancy Leveson and Clark Turner, \"An Investigation of the Therac-25 Accidents\", IEEE Computer (1993)"
+  ],
+  "language": "Python port (the original was PDP-11 assembly).",
+  "out_of_reach": "The hardware interlock that was removed is not code; what is visible is the shared state with no lock between the two tasks.",
+  "args": [
+    "--closed-world"
+  ],
+  "steps": [
+    {
+      "dir": "1-edits-and-setup-synchronised",
+      "what": "Edits and magnet setup are serialised (the role the hardware interlock played)."
+    },
+    {
+      "dir": "2-software-only",
+      "what": "The serialisation is gone: an edit can land while setup reads the old values.",
+      "expect": [
+        "unsynchronized-shared-state"
+      ]
+    }
+  ]
+}

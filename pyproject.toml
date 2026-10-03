@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "magellan-lite"
+version = "0.1.0"
+description = "A pre-commit check for Python: what your change touched, and the checklist of what it could break."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+magellan-lite = "magellan_lite.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["magellan_lite*"]
