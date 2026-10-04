@@ -1,0 +1,4 @@
+test/**
+sync.js
+shared.json
+*.vsix

@@ -35,6 +35,8 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--format", choices=("text", "json"), default="text")
     c.add_argument("--fail-on", choices=(*VERDICTS[1:], "never"), default="block",
                    help="exit 1 when the verdict is at least this (default: block)")
+    c.add_argument("--map", action="store_true",
+                   help="with --format json: add the code map the editor and website draw")
 
     sub.add_parser("rules", help="list the checklist rules")
 
@@ -119,12 +121,24 @@ def main(argv: list[str] | None = None) -> int:
               else team.text(results))
         return 1 if any(c.report and c.report.fails(args.fail_on) for c in results) else 0
 
-    from magellan_lite.engine import check
+    from pathlib import Path
+
+    from magellan_lite.engine import check_snapshots, load_before
     from magellan_lite.output import text
+    from magellan_lite.source import working_tree
     try:
-        report = check(args.path, args.against)
+        root = Path(args.path).resolve()
+        before, after = load_before(root, args.against), working_tree(root)
+        report = check_snapshots(before, after, root, args.against)
     except (GitError, ValueError, OSError) as exc:
         print(f"magellan-lite: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps(report.to_dict(), indent=2) if args.format == "json" else text(report))
+    if args.format == "json":
+        out = report.to_dict()
+        if args.map:
+            from magellan_lite.web import code_map
+            out["map"] = code_map(before, after, out)
+        print(json.dumps(out, indent=2))
+    else:
+        print(text(report))
     return 1 if report.fails(args.fail_on) else 0

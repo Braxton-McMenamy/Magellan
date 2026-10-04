@@ -94,6 +94,8 @@ Each says what to build and how you know it's done.
 | `TODO(checklist)` | comfortable | Done: the five famous-failure rules (`leap-day-date`, `reused-value`, `loop-without-progress`, `regex-catastrophic-backtracking`, `unsynchronized-shared-state`); every incident is caught. Next: make them see more (a regex kept in a constant is the easiest; see `magellan_lite/rules/__init__.py`). After any rule change, `python demo/run.py` must stay all caught; then run `python demo/build_site.py`. |
 | engine | Brayton | Done: the blast radius (call graph and propagation), renames, the "reaches" section, `signature-break` and `removed-still-referenced`. The sensor incident is caught. |
 | `TODO(site)` | Braxton | The website. Done: the live hero, the famous-failure player, the checklist, Try it. Next: a share link for Try it (`site/js/tryit.js`), opening the player on one incident (`site/js/story.js`). |
+| `TODO(braxton)` | Braxton | The 3D and 2D views from the original Magellan, in `site/js/` (shared with the extension's map panel and the account pages to come): steps in `editors/vscode/media/panel.js`. |
+| `TODO(faidh)` | Faidh | The VS Code extension: status bar colours, a setting to hide low findings, an icon, a screenshot. Four small numbered tasks: see `editors/vscode/README.md`. |
 
 ## Layout
 
@@ -117,7 +119,10 @@ tests/          unittest; tests/helpers.py makes throwaway git repositories
 demo/           incidents/ (famous failures, one folder per change), run.py (the scoreboard),
                 build_site.py (writes site/data/ from the real engine)
 site/           the project page (Braxton's): plain HTML, CSS and JavaScript, no build step;
-                site/data/ is generated, never edited by hand
+                site/data/ is generated, never edited by hand; js/map.js + css/map.css draw
+                every code map (website and extension)
+editors/vscode/ the VS Code extension: on-save checks, the status bar, team conflicts, the map
+                panel (see its README; `npm test` there, or tests/test_extension.py)
 ```
 
 ## Website

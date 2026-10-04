@@ -1,0 +1,69 @@
+{
+  "name": "magellan-lite",
+  "displayName": "Magellan Lite",
+  "description": "Know what your change breaks before you commit it: the checklist where the damage lands, the verdict in the status bar, conflicts with your team's work in progress, and a map of what the change reaches.",
+  "version": "0.1.0",
+  "publisher": "magellan-lite",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onLanguage:python",
+    "workspaceContains:**/*.py"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "magellanLite.check",
+        "title": "Check this change",
+        "category": "Magellan Lite"
+      },
+      {
+        "command": "magellanLite.showMap",
+        "title": "Show the map",
+        "category": "Magellan Lite"
+      },
+      {
+        "command": "magellanLite.share",
+        "title": "Share my work in progress with my team",
+        "category": "Magellan Lite"
+      },
+      {
+        "command": "magellanLite.team",
+        "title": "Check against my team's work in progress",
+        "category": "Magellan Lite"
+      }
+    ],
+    "configuration": {
+      "title": "Magellan Lite",
+      "properties": {
+        "magellanLite.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "The Python that has Magellan Lite installed (pip install -e <the repo>)."
+        },
+        "magellanLite.checkOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check the change every time a Python file is saved."
+        },
+        "magellanLite.against": {
+          "type": "string",
+          "default": "git:HEAD",
+          "description": "What to compare the working tree with: git:REV, or a folder holding the old version."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "sync": "node sync.js",
+    "test": "node --test \"test/*.test.js\"",
+    "package": "node sync.js && npx --yes @vscode/vsce package --allow-missing-repository --skip-license"
+  }
+}
