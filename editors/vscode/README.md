@@ -41,8 +41,19 @@ software failures on what it found, and gives the change one verdict: `ok`, `rev
 
 1. **Install the extension**: download
    [magellan-lite-0.3.1.vsix](https://magellan-code.pages.dev/downloads/magellan-lite-0.3.1.vsix)
-   from the website, then Extensions view → `...` → *Install from VSIX...* → pick it, or
-   `code --install-extension magellan-lite-0.3.1.vsix`.
+   from the website, then Extensions view → `...` → *Install from VSIX...* → pick it. Or one
+   line that finds the file (here, in Downloads or on the Desktop), downloads it if it isn't
+   there, and installs it. Windows PowerShell:
+
+   ```powershell
+   $ProgressPreference='SilentlyContinue'; $f = (Get-ChildItem $PWD, "$HOME\Downloads", "$HOME\Desktop" -Filter 'magellan-lite-*.vsix' -EA 0 | Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName; if (!$f) { $f = "$env:TEMP\magellan-lite.vsix"; Invoke-WebRequest https://magellan-code.pages.dev/downloads/magellan-lite-0.3.1.vsix -OutFile $f }; code --install-extension $f --force
+   ```
+
+   macOS or Linux:
+
+   ```sh
+   f=$(ls -t ./magellan-lite-*.vsix ~/Downloads/magellan-lite-*.vsix ~/Desktop/magellan-lite-*.vsix 2>/dev/null | head -1); [ -n "$f" ] || { f=/tmp/magellan-lite.vsix; curl -fsSL -o "$f" https://magellan-code.pages.dev/downloads/magellan-lite-0.3.1.vsix; }; code --install-extension "$f" --force
+   ```
 2. **Open a project and save a change.** The verdict appears in the status bar a moment later,
    and each finding on its line. That's all: there is nothing to configure.
 3. **Open the map**: click the verdict, or run **Magellan Lite: Show the map**. Then click into
