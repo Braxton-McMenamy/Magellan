@@ -39,5 +39,8 @@
     </article>`).join("");
 
   const count = document.getElementById("rule-count");
-  if (count) count.textContent = `${rules.length} rules today, ${waiting.size} on the way`;
+  if (count) {
+    count.textContent = waiting.size ? `${rules.length} rules today, ${waiting.size} on the way`
+      : `${rules.length} rules, every famous failure caught`;
+  }
 })();

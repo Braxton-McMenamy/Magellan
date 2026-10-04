@@ -188,6 +188,7 @@ button.button { font: inherit; font-weight: 600; cursor: pointer; }
 }
 .stamp.in { opacity: 1; transform: rotate(-6deg) scale(1); }
 .stamp.block, .stamp.missed { color: var(--hot); text-shadow: 0 0 30px rgba(255, 107, 94, .5); }
+.stamp.review { color: var(--review); text-shadow: 0 0 30px rgba(240, 180, 76, .45); }
 .stamp.waiting { color: var(--stage-muted); font-size: clamp(1.3rem, 3.6vw, 2rem); }
 .stamp.quiet { color: var(--ok); }
 .verdict-stage .fix {

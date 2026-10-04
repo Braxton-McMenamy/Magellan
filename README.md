@@ -61,7 +61,7 @@ Each says what to build and how you know it's done.
 |---|---|---|
 | `TODO(starter)` | new to Python's `ast` | Four small rules with numbered steps and a test waiting for each (`bare_except` → `assert_tuple` → `compare_none` → `debug_leftover`). Delete the test's `@unittest.skip` line when you're done. |
 | `TODO(qol)` | comfortable | The PR comment bot (most visible), `--format markdown`, `hook install`, settings from `pyproject.toml`, `# magellan: ignore[rule]`, colours. |
-| `TODO(checklist)` | comfortable | The famous-failure rules: `leap-day-date` (start here), `reused-value`, `loop-without-progress`, `regex-catastrophic-backtracking`. Each turns an incident in `python demo/run.py` from *waiting* to *caught*; then run `python demo/build_site.py` so the website shows it. |
+| `TODO(checklist)` | comfortable | Done: the five famous-failure rules (`leap-day-date`, `reused-value`, `loop-without-progress`, `regex-catastrophic-backtracking`, `unsynchronized-shared-state`); every incident is caught. Next: make them see more (a regex kept in a constant is the easiest; see `magellan_lite/rules/__init__.py`). After any rule change, `python demo/run.py` must stay all caught; then run `python demo/build_site.py`. |
 | engine | Brayton | Done: the blast radius (call graph and propagation), renames, the "reaches" section, `signature-break` and `removed-still-referenced`. The sensor incident is caught. |
 | `TODO(site)` | Braxton | The website. Done: the live hero, the famous-failure player, the checklist, Try it. Next: a share link for Try it (`site/js/tryit.js`), opening the player on one incident (`site/js/story.js`). |
 

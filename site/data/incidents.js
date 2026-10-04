@@ -12,14 +12,24 @@ window.MAGELLAN_INCIDENTS = [
    {
     "dir": "2-same-date-next-year",
     "what": "Valid until the same calendar date next year.",
-    "verdict": "ok",
-    "status": "waiting",
+    "verdict": "block",
+    "status": "caught",
     "rules": {
-     "leap-day-date": "waiting"
+     "leap-day-date": "caught"
     },
     "unwanted": [],
     "known_miss": "",
-    "findings": [],
+    "findings": [
+     {
+      "rule": "leap-day-date",
+      "severity": "high",
+      "message": "`now.replace(year=now.year + 1)` raises ValueError on February 29: a year later there is no February 29",
+      "path": "fabric/certs.py",
+      "line": 9,
+      "detail": "It works on every other day, so every test passes. Windows Azure, 2012: certificates dated this way failed on leap day and took services down for 34 hours.",
+      "fix": "Add a timedelta instead (days=365), or handle February 29 yourself (fall back to February 28)."
+     }
+    ],
     "changes": [
      {
       "kind": "body",
@@ -64,9 +74,9 @@ window.MAGELLAN_INCIDENTS = [
   "story": {
    "step": "2-same-date-next-year",
    "what": "Valid until the same calendar date next year.",
-   "verdict": "ok",
+   "verdict": "block",
    "rules": {
-    "leap-day-date": "waiting"
+    "leap-day-date": "caught"
    },
    "files": [
     {
@@ -134,7 +144,9 @@ window.MAGELLAN_INCIDENTS = [
        "    return now, valid_to"
       ]
      ],
-     "marks": []
+     "marks": [
+      9
+     ]
     }
    ],
    "changes": [
@@ -146,7 +158,17 @@ window.MAGELLAN_INCIDENTS = [
      "detail": "function body changed"
     }
    ],
-   "findings": [],
+   "findings": [
+    {
+     "rule": "leap-day-date",
+     "severity": "high",
+     "message": "`now.replace(year=now.year + 1)` raises ValueError on February 29: a year later there is no February 29",
+     "path": "fabric/certs.py",
+     "line": 9,
+     "detail": "It works on every other day, so every test passes. Windows Azure, 2012: certificates dated this way failed on leap day and took services down for 34 hours.",
+     "fix": "Add a timedelta instead (days=365), or handle February 29 yourself (fall back to February 28)."
+    }
+   ],
    "affected": [
     {
      "name": "fabric.agent.start_guest_agent",
@@ -181,7 +203,7 @@ window.MAGELLAN_INCIDENTS = [
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": true
      }
     ],
     "edges": [
@@ -208,14 +230,24 @@ window.MAGELLAN_INCIDENTS = [
    {
     "dir": "2-new-xss-rule",
     "what": "A new XSS rule in simulate mode, with the regex from Cloudflare's post-mortem.",
-    "verdict": "ok",
-    "status": "waiting",
+    "verdict": "review",
+    "status": "caught",
     "rules": {
-     "regex-catastrophic-backtracking": "waiting"
+     "regex-catastrophic-backtracking": "caught"
     },
     "unwanted": [],
     "known_miss": "",
-    "findings": [],
+    "findings": [
+     {
+      "rule": "regex-catastrophic-backtracking",
+      "severity": "high",
+      "message": "the regular expression `(?:(?:\"|'|\\]|\\}|\\\\|\\d|(?:nan|infinity|true|fa...` can backtrack catastrophically: four unbounded parts in a row can all match the same text (a run of '+'), and what follows can fail: the work grows like n^4 with the input's length",
+      "path": "waf/rules.py",
+      "line": 14,
+      "detail": "A request that almost matches keeps the CPU busy for seconds or more. Cloudflare, 2019: one such pattern took every server's HTTP CPUs to nearly 100% and the network down for 27 minutes.",
+      "fix": "Remove the overlap: drop redundant `.*`s, make the parts match different characters, or bound them ({0,100}); then time the pattern on a long input that does not match."
+     }
+    ],
     "changes": [
      {
       "kind": "value",
@@ -273,9 +305,9 @@ window.MAGELLAN_INCIDENTS = [
   "story": {
    "step": "2-new-xss-rule",
    "what": "A new XSS rule in simulate mode, with the regex from Cloudflare's post-mortem.",
-   "verdict": "ok",
+   "verdict": "review",
    "rules": {
-    "regex-catastrophic-backtracking": "waiting"
+    "regex-catastrophic-backtracking": "caught"
    },
    "files": [
     {
@@ -383,7 +415,9 @@ window.MAGELLAN_INCIDENTS = [
        "    return [(name, mode) for name, (mode, rule) in RULES.items() if rule.search(payload)]"
       ]
      ],
-     "marks": []
+     "marks": [
+      14
+     ]
     }
    ],
    "changes": [
@@ -395,7 +429,17 @@ window.MAGELLAN_INCIDENTS = [
      "detail": "{'sqli-union-select': ('block', re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b')), 'xss-script-tag': ('block', re.compile('(?i)<\\\\s*script\\\\b')), 'path-traversal': ('block', re.compile('(?:\\\\.\\\\./){2,}'))}  ->  {'sqli-union-select': ('block', re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b')), 'xss-script-tag': ('block', re.compile('(?i)<\\\\s*script\\\\b')), 'path-traversal': ('block', re.compile('(?:\\\\.\\\\./){2,}')), 'xss-inline-js': ('simulate', re.compile('(?:(?:\"|\\'|\\\\]|\\\\}|\\\\\\\\|\\\\d|(?:nan|infinity|true|false|null|undefined|symbol|math)|`|\\\\-|\\\\+)+[)]*;?((?:\\\\s|-|~|!|{}|\\\\|\\\\||\\\\+)*.*(?:.*=.*)))'))}"
     }
    ],
-   "findings": [],
+   "findings": [
+    {
+     "rule": "regex-catastrophic-backtracking",
+     "severity": "high",
+     "message": "the regular expression `(?:(?:\"|'|\\]|\\}|\\\\|\\d|(?:nan|infinity|true|fa...` can backtrack catastrophically: four unbounded parts in a row can all match the same text (a run of '+'), and what follows can fail: the work grows like n^4 with the input's length",
+     "path": "waf/rules.py",
+     "line": 14,
+     "detail": "A request that almost matches keeps the CPU busy for seconds or more. Cloudflare, 2019: one such pattern took every server's HTTP CPUs to nearly 100% and the network down for 27 minutes.",
+     "fix": "Remove the overlap: drop redundant `.*`s, make the parts match different characters, or bound them ({0,100}); then time the pattern on a long input that does not match."
+    }
+   ],
    "affected": [
     {
      "name": "waf.rules.matching_rules",
@@ -450,7 +494,7 @@ window.MAGELLAN_INCIDENTS = [
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": true
      },
      {
       "id": "waf.rules.matching_rules",
@@ -501,14 +545,24 @@ window.MAGELLAN_INCIDENTS = [
    {
     "dir": "2-2005-fill-tracking-moved",
     "what": "Fill tracking moves out of Power Peg's loop to the start of routing.",
-    "verdict": "ok",
-    "status": "waiting",
+    "verdict": "block",
+    "status": "caught",
     "rules": {
-     "loop-without-progress": "waiting"
+     "loop-without-progress": "caught"
     },
     "unwanted": [],
     "known_miss": "",
-    "findings": [],
+    "findings": [
+     {
+      "rule": "loop-without-progress",
+      "severity": "high",
+      "message": "this loop never ends once it starts: nothing in it changes order.filled or order.qty, and nothing leaves it",
+      "path": "smars/power_peg.py",
+      "line": 11,
+      "detail": "Once it runs, the program hangs or keeps doing the same thing forever. Knight Capital, 2012: a loop like this sent orders without end ($460 million in 45 minutes). Zune, 2008: one like it froze every Zune 30 on the last day of a leap year.",
+      "fix": "Make every way through the loop change what its condition reads, or leave the loop (break, return or raise) where it cannot."
+     }
+    ],
     "changes": [
      {
       "kind": "body",
@@ -539,14 +593,24 @@ window.MAGELLAN_INCIDENTS = [
    {
     "dir": "3-2012-rlp-reuses-the-flag",
     "what": "RLP replaces Power Peg and takes over its flag value 0x08.",
-    "verdict": "ok",
-    "status": "waiting",
+    "verdict": "review",
+    "status": "caught",
     "rules": {
-     "reused-value": "waiting"
+     "reused-value": "caught"
     },
     "unwanted": [],
     "known_miss": "",
-    "findings": [],
+    "findings": [
+     {
+      "rule": "reused-value",
+      "severity": "high",
+      "message": "RLP takes over the value 0x08 that POWER_PEG had: route() used to call power_peg() and track_cumulative() for it, and now calls rlp()",
+      "path": "smars/router.py",
+      "line": 8,
+      "detail": "Anything that still sends, stores or runs with the old meaning of 0x08 -- another service, saved data, a server still on the previous build -- now gets the new behaviour. Knight Capital, 2012: a reused flag woke dead code on one server and lost $460 million in 45 minutes.",
+      "fix": "Give the new meaning a value of its own, and retire the old one: reject it (or log it and refuse), so whatever still sends it fails loudly instead of running the new code."
+     }
+    ],
     "changes": [
      {
       "kind": "removed",
@@ -633,9 +697,9 @@ window.MAGELLAN_INCIDENTS = [
   "story": {
    "step": "2-2005-fill-tracking-moved",
    "what": "Fill tracking moves out of Power Peg's loop to the start of routing.",
-   "verdict": "ok",
+   "verdict": "block",
    "rules": {
-    "loop-without-progress": "waiting"
+    "loop-without-progress": "caught"
    },
    "files": [
     {
@@ -713,7 +777,9 @@ window.MAGELLAN_INCIDENTS = [
        "        send_child(order.symbol, order.qty - order.filled)"
       ]
      ],
-     "marks": []
+     "marks": [
+      11
+     ]
     },
     {
      "path": "smars/router.py",
@@ -804,7 +870,17 @@ window.MAGELLAN_INCIDENTS = [
      "detail": "function body changed"
     }
    ],
-   "findings": [],
+   "findings": [
+    {
+     "rule": "loop-without-progress",
+     "severity": "high",
+     "message": "this loop never ends once it starts: nothing in it changes order.filled or order.qty, and nothing leaves it",
+     "path": "smars/power_peg.py",
+     "line": 11,
+     "detail": "Once it runs, the program hangs or keeps doing the same thing forever. Knight Capital, 2012: a loop like this sent orders without end ($460 million in 45 minutes). Zune, 2008: one like it froze every Zune 30 on the last day of a leap year.",
+     "fix": "Make every way through the loop change what its condition reads, or leave the loop (break, return or raise) where it cannot."
+    }
+   ],
    "affected": [
     {
      "name": "smars.main.on_parent_order",
@@ -899,7 +975,7 @@ window.MAGELLAN_INCIDENTS = [
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": true
      },
      {
       "id": "smars.power_peg.track_cumulative",
@@ -2028,14 +2104,24 @@ window.MAGELLAN_INCIDENTS = [
    {
     "dir": "2-software-only",
     "what": "The serialisation is gone: an edit can land while setup reads the old values.",
-    "verdict": "ok",
-    "status": "waiting",
+    "verdict": "review",
+    "status": "caught",
     "rules": {
-     "unsynchronized-shared-state": "waiting"
+     "unsynchronized-shared-state": "caught"
     },
     "unwanted": [],
     "known_miss": "",
-    "findings": [],
+    "findings": [
+     {
+      "rule": "unsynchronized-shared-state",
+      "severity": "high",
+      "message": "operator_edit() writes self.energy_mev and self.mode while set_up_beam() uses them on another thread, with no lock held",
+      "path": "therac/console.py",
+      "line": 14,
+      "detail": "Both are started as threads (lines 22 and 23), so set_up_beam() can run halfway through operator_edit()'s update and see a mix of old and new values. Therac-25: a quick edit was half seen by the setup task, and patients received about 100 times the intended dose.",
+      "fix": "Hold one lock around every read and write of the shared fields (`with self.lock:` in both methods), so one thread never sees half an update."
+     }
+    ],
     "changes": [
      {
       "kind": "body",
@@ -2078,9 +2164,9 @@ window.MAGELLAN_INCIDENTS = [
   "story": {
    "step": "2-software-only",
    "what": "The serialisation is gone: an edit can land while setup reads the old values.",
-   "verdict": "ok",
+   "verdict": "review",
    "rules": {
-    "unsynchronized-shared-state": "waiting"
+    "unsynchronized-shared-state": "caught"
    },
    "files": [
     {
@@ -2228,7 +2314,9 @@ window.MAGELLAN_INCIDENTS = [
        "        threading.Thread(target=self.set_up_beam).start()"
       ]
      ],
-     "marks": []
+     "marks": [
+      14
+     ]
     }
    ],
    "changes": [
@@ -2247,7 +2335,17 @@ window.MAGELLAN_INCIDENTS = [
      "detail": "method body changed"
     }
    ],
-   "findings": [],
+   "findings": [
+    {
+     "rule": "unsynchronized-shared-state",
+     "severity": "high",
+     "message": "operator_edit() writes self.energy_mev and self.mode while set_up_beam() uses them on another thread, with no lock held",
+     "path": "therac/console.py",
+     "line": 14,
+     "detail": "Both are started as threads (lines 22 and 23), so set_up_beam() can run halfway through operator_edit()'s update and see a mix of old and new values. Therac-25: a quick edit was half seen by the setup task, and patients received about 100 times the intended dose.",
+     "fix": "Hold one lock around every read and write of the shared fields (`with self.lock:` in both methods), so one thread never sees half an update."
+    }
+   ],
    "affected": [],
    "map": {
     "nodes": [
@@ -2285,7 +2383,7 @@ window.MAGELLAN_INCIDENTS = [
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": true
      },
      {
       "id": "therac.console.TreatmentConsole.set_up_beam",
@@ -2329,14 +2427,24 @@ window.MAGELLAN_INCIDENTS = [
    {
     "dir": "2-days-to-year",
     "what": "Convert the day count to a calendar year (the driver's ConvertDays).",
-    "verdict": "ok",
-    "status": "waiting",
+    "verdict": "block",
+    "status": "caught",
     "rules": {
-     "loop-without-progress": "waiting"
+     "loop-without-progress": "caught"
     },
     "unwanted": [],
     "known_miss": "",
-    "findings": [],
+    "findings": [
+     {
+      "rule": "loop-without-progress",
+      "severity": "high",
+      "message": "this loop never ends when is_leap_year(year) and not days > 366 (days == 366): nothing on that path changes days or year, and nothing leaves the loop",
+      "path": "zune/rtc.py",
+      "line": 16,
+      "detail": "Once it runs, the program hangs or keeps doing the same thing forever. Knight Capital, 2012: a loop like this sent orders without end ($460 million in 45 minutes). Zune, 2008: one like it froze every Zune 30 on the last day of a leap year.",
+      "fix": "Make every way through the loop change what its condition reads, or leave the loop (break, return or raise) where it cannot."
+     }
+    ],
     "changes": [
      {
       "kind": "body",
@@ -2408,9 +2516,9 @@ window.MAGELLAN_INCIDENTS = [
   "story": {
    "step": "2-days-to-year",
    "what": "Convert the day count to a calendar year (the driver's ConvertDays).",
-   "verdict": "ok",
+   "verdict": "block",
    "rules": {
-    "loop-without-progress": "waiting"
+    "loop-without-progress": "caught"
    },
    "files": [
     {
@@ -2538,7 +2646,9 @@ window.MAGELLAN_INCIDENTS = [
        "    return year"
       ]
      ],
-     "marks": []
+     "marks": [
+      16
+     ]
     }
    ],
    "changes": [
@@ -2557,7 +2667,17 @@ window.MAGELLAN_INCIDENTS = [
      "detail": "new function"
     }
    ],
-   "findings": [],
+   "findings": [
+    {
+     "rule": "loop-without-progress",
+     "severity": "high",
+     "message": "this loop never ends when is_leap_year(year) and not days > 366 (days == 366): nothing on that path changes days or year, and nothing leaves the loop",
+     "path": "zune/rtc.py",
+     "line": 16,
+     "detail": "Once it runs, the program hangs or keeps doing the same thing forever. Knight Capital, 2012: a loop like this sent orders without end ($460 million in 45 minutes). Zune, 2008: one like it froze every Zune 30 on the last day of a leap year.",
+     "fix": "Make every way through the loop change what its condition reads, or leave the loop (break, return or raise) where it cannot."
+    }
+   ],
    "affected": [],
    "map": {
     "nodes": [
@@ -2631,7 +2751,7 @@ window.MAGELLAN_INCIDENTS = [
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": true
      }
     ],
     "edges": [

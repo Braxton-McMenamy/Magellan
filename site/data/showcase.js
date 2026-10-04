@@ -36,11 +36,32 @@ window.MAGELLAN_SHOWCASE = {
    "fix": "Remove it before committing (use logging for output)."
   },
   {
+   "id": "leap-day-date",
+   "severity": "high",
+   "blocking": true,
+   "kind": "file",
+   "fix": "Add a timedelta instead (days=365), or handle February 29 yourself (fall back to February 28)."
+  },
+  {
+   "id": "loop-without-progress",
+   "severity": "high",
+   "blocking": true,
+   "kind": "file",
+   "fix": "Make every way through the loop change what its condition reads, or leave the loop (break, return or raise) where it cannot."
+  },
+  {
    "id": "mutable-default-argument",
    "severity": "medium",
    "blocking": false,
    "kind": "file",
    "fix": "Default to None and build the container inside the function."
+  },
+  {
+   "id": "regex-catastrophic-backtracking",
+   "severity": "high",
+   "blocking": false,
+   "kind": "file",
+   "fix": "Remove the overlap: drop redundant `.*`s, make the parts match different characters, or bound them ({0,100}); then time the pattern on a long input that does not match."
   },
   {
    "id": "removed-still-referenced",
@@ -50,11 +71,25 @@ window.MAGELLAN_SHOWCASE = {
    "fix": "Restore it, or update the code that still uses it in the same change."
   },
   {
+   "id": "reused-value",
+   "severity": "high",
+   "blocking": false,
+   "kind": "change",
+   "fix": "Give the new meaning a value of its own, and retire the old one: reject it (or log it and refuse), so whatever still sends it fails loudly instead of running the new code."
+  },
+  {
    "id": "signature-break",
    "severity": "critical",
    "blocking": true,
    "kind": "change",
    "fix": "Update the call, or give the new parameter a default so existing calls keep working."
+  },
+  {
+   "id": "unsynchronized-shared-state",
+   "severity": "high",
+   "blocking": false,
+   "kind": "file",
+   "fix": "Hold one lock around every read and write of the shared fields (`with self.lock:` in both methods), so one thread never sees half an update."
   }
  ],
  "examples": [
