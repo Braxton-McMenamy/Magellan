@@ -5,6 +5,10 @@ Know what your change breaks before you commit it, without leaving the editor.
 - **On save**, Magellan Lite checks your change against the last commit: each finding lands in
   the Problems panel and as a squiggle on its line, and the verdict (ok, review, block) sits in
   the status bar.
+- **The Magellan Lite sidebar** (its icon is in the Activity Bar, like the full Magellan's) has
+  three views: **Checklist** (the findings), **What it reaches** (the blast radius, hop by hop,
+  with scores) and **Team** (each teammate, with their conflicts with your work). Click an item
+  to open its line. Files with findings show a count in the Explorer.
 - **Magellan Lite: Show the map** opens a panel with the change and what it reaches, hop by hop,
   drawn by the same renderer as the website. Click a finding to jump to its line.
 - **Magellan Lite: Share my work in progress with my team** and **Check against my team's work
@@ -19,11 +23,20 @@ The extension runs `python -m magellan_lite`, so install Magellan Lite into the 
 pip install -e .                        # in the Magellan Lite repository
 ```
 
-Then, from the repository root, either
+Then, from the repository root, either open a VS Code window with it loaded (the path must be
+a full one: with a relative path, VS Code on Windows looks for `\editors\vscode` at the root of
+the drive and silently opens a window without the extension):
+
+```powershell
+code --extensionDevelopmentPath="$PWD\editors\vscode" "$PWD"       # PowerShell
+```
 
 ```sh
-code --extensionDevelopmentPath=editors/vscode .     # a VS Code window with it loaded
+code --extensionDevelopmentPath="$(pwd)/editors/vscode" "$(pwd)"   # bash
 ```
+
+The window's title starts with **[Extension Development Host]**, and **Magellan Lite** appears
+at the left of its status bar.
 
 or package it and install the package:
 
@@ -41,6 +54,7 @@ If you have the full Magellan extension installed, disable it first (Extensions 
 | File | What |
 |---|---|
 | `extension.js` | commands, check on save, the Problems panel, the status bar, the map panel |
+| `sidebar.js` | the sidebar's three views and the Explorer badges |
 | `lite.js` | what to do with Magellan Lite's JSON (no VS Code in it, so plain Node tests it) |
 | `panel.js`, `media/panel.*` | the map panel's page |
 | `media/map.js`, `media/map.css` | the website's map renderer, copied by `sync.js` (edit `site/`, then `npm run sync`) |

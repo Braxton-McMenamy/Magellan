@@ -5,6 +5,11 @@
   "version": "0.1.0",
   "publisher": "magellan-lite",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Braxton-McMenamy/Magellan",
+    "directory": "editors/vscode"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -14,7 +19,8 @@
   ],
   "activationEvents": [
     "onLanguage:python",
-    "workspaceContains:**/*.py"
+    "workspaceContains:**/*.py",
+    "onStartupFinished"
   ],
   "main": "./extension.js",
   "contributes": {
@@ -22,22 +28,93 @@
       {
         "command": "magellanLite.check",
         "title": "Check this change",
-        "category": "Magellan Lite"
+        "category": "Magellan Lite",
+        "icon": "$(refresh)"
       },
       {
         "command": "magellanLite.showMap",
         "title": "Show the map",
-        "category": "Magellan Lite"
+        "category": "Magellan Lite",
+        "icon": "$(type-hierarchy)"
       },
       {
         "command": "magellanLite.share",
         "title": "Share my work in progress with my team",
-        "category": "Magellan Lite"
+        "category": "Magellan Lite",
+        "icon": "$(cloud-upload)"
       },
       {
         "command": "magellanLite.team",
         "title": "Check against my team's work in progress",
+        "category": "Magellan Lite",
+        "icon": "$(organization)"
+      },
+      {
+        "command": "magellanLite.showOutput",
+        "title": "Show output",
+        "category": "Magellan Lite",
+        "icon": "$(output)"
+      },
+      {
+        "command": "magellanLite.openAt",
+        "title": "Open",
         "category": "Magellan Lite"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "magellanLite",
+          "title": "Magellan Lite",
+          "icon": "media/magellan-lite.svg"
+        }
+      ]
+    },
+    "views": {
+      "magellanLite": [
+        {
+          "id": "magellanLite.checklist",
+          "name": "Checklist"
+        },
+        {
+          "id": "magellanLite.reach",
+          "name": "What it reaches"
+        },
+        {
+          "id": "magellanLite.team",
+          "name": "Team"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "magellanLite.checklist",
+        "when": "!magellanLite.state || magellanLite.state == checking",
+        "contents": "Checking your change against the last commit..."
+      },
+      {
+        "view": "magellanLite.checklist",
+        "when": "magellanLite.state == nofolder",
+        "contents": "Open a folder with Python code, and Magellan Lite checks your change every time you save.\n[Open Folder](command:workbench.action.files.openFolder)"
+      },
+      {
+        "view": "magellanLite.checklist",
+        "when": "magellanLite.state == failed",
+        "contents": "Magellan Lite could not run. Usually the Python in `magellanLite.pythonPath` cannot import it: run `pip install -e <the Magellan Lite repo>` with that Python.\n[Set the Python](command:workbench.action.openSettings?%5B%22magellanLite.pythonPath%22%5D)\n[Show output](command:magellanLite.showOutput)\n[Try again](command:magellanLite.check)"
+      },
+      {
+        "view": "magellanLite.checklist",
+        "when": "magellanLite.state == ready",
+        "contents": "Nothing to check in what your change touched. Edit and save a Python file to check it again.\n[Show the map](command:magellanLite.showMap)"
+      },
+      {
+        "view": "magellanLite.reach",
+        "when": "magellanLite.state == ready",
+        "contents": "Nothing your change didn't edit is reached by it (or there is no change yet)."
+      },
+      {
+        "view": "magellanLite.team",
+        "contents": "See what only your work and a teammate's break together, before either of you merges.\n[Share my work in progress](command:magellanLite.share)\n[Check against my team](command:magellanLite.team)"
       }
     ],
     "configuration": {
@@ -59,11 +136,46 @@
           "description": "What to compare the working tree with: git:REV, or a folder holding the old version."
         }
       }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "magellanLite.check",
+          "when": "view == magellanLite.checklist",
+          "group": "navigation@1"
+        },
+        {
+          "command": "magellanLite.showMap",
+          "when": "view == magellanLite.checklist || view == magellanLite.reach",
+          "group": "navigation@2"
+        },
+        {
+          "command": "magellanLite.showOutput",
+          "when": "view == magellanLite.checklist",
+          "group": "navigation@9"
+        },
+        {
+          "command": "magellanLite.share",
+          "when": "view == magellanLite.team",
+          "group": "navigation@1"
+        },
+        {
+          "command": "magellanLite.team",
+          "when": "view == magellanLite.team",
+          "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "magellanLite.openAt",
+          "when": "false"
+        }
+      ]
     }
   },
   "scripts": {
     "sync": "node sync.js",
     "test": "node --test \"test/*.test.js\"",
-    "package": "node sync.js && npx --yes @vscode/vsce package --allow-missing-repository --skip-license"
+    "package": "node sync.js && npx --yes @vscode/vsce package --skip-license"
   }
 }

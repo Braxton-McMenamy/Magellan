@@ -18,12 +18,17 @@ const TEAM = [{ name: "braxton", verdict: "block", findings: [
 
 /** Just enough of VS Code for the extension to run, recording what it was asked to do. */
 function fakeVscode(settings = {}) {
-  const seen = { commands: {}, diagnostics: {}, messages: [], onSave: null };
+  const seen = { commands: {}, diagnostics: {}, messages: [], onSave: null, trees: {}, context: {} };
   class Range { constructor(...a) { this.a = a; } }
   class Diagnostic { constructor(range, message, severity) { Object.assign(this, { range, message, severity }); } }
   class ThemeColor { constructor(id) { this.id = id; } }
+  class EventEmitter { constructor() { this.event = () => ({ dispose() {} }); } fire() {} }
   const vscode = {
-    seen, Range, Diagnostic, ThemeColor,
+    seen, Range, Diagnostic, ThemeColor, EventEmitter,
+    TreeItem: class { constructor(label, collapsibleState) { Object.assign(this, { label, collapsibleState }); } },
+    TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
+    ThemeIcon: class { constructor(id, color) { Object.assign(this, { id, color }); } },
+    FileDecoration: class { constructor(badge, tooltip, color) { Object.assign(this, { badge, tooltip, color }); } },
     Position: class { constructor(l, c) { this.l = l; this.c = c; } },
     DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
     StatusBarAlignment: { Left: 1 }, ViewColumn: { Beside: -2 },
@@ -37,6 +42,8 @@ function fakeVscode(settings = {}) {
       createOutputChannel: () => ({ appendLine() {}, dispose() {} }),
       createStatusBarItem: () => (seen.status = { text: "", show() {}, hide() {}, dispose() {} }),
       showInformationMessage: (m) => seen.messages.push(m),
+      registerTreeDataProvider: (id, provider) => { seen.trees[id] = provider; return { dispose() {} }; },
+      registerFileDecorationProvider: (p) => { seen.badges = p; return { dispose() {} }; },
     },
     languages: {
       createDiagnosticCollection: (name) => ({
@@ -45,7 +52,10 @@ function fakeVscode(settings = {}) {
         dispose() {},
       }),
     },
-    commands: { registerCommand: (id, fn) => { seen.commands[id] = fn; return { dispose() {} }; } },
+    commands: {
+      registerCommand: (id, fn) => { seen.commands[id] = fn; return { dispose() {} }; },
+      executeCommand: (id, key, value) => { if (id === "setContext") seen.context[key] = value; },
+    },
   };
   return vscode;
 }
@@ -94,6 +104,39 @@ test("without Magellan Lite installed, the status bar says how to fix it", async
   await ext.first;
   assert.equal(vscode.seen.status.text, "$(alert) Magellan Lite");
   assert.match(vscode.seen.status.tooltip, /pip install -e/);
+});
+
+test("the sidebar lists the checklist, what the change reaches, and the team", async () => {
+  const vscode = fakeVscode();
+  const report = { ...CHECK, affected: [{ name: "sensor.collector.sweep", path: "sensor/collector.py", line: 17,
+                                          hops: 2, score: 0.77, why: "sweep calls collect" }] };
+  const ext = activate({ subscriptions: [], extensionPath: __dirname },
+    { vscode, execFile: fakePython({ check: report, team: TEAM }).execFile });
+  await ext.first;
+  const trees = vscode.seen.trees;
+  const [f] = trees["magellanLite.checklist"].getChildren();
+  assert.deepEqual([f.label, f.description, f.command.arguments], ["signature-break", "sensor/collector.py:11", ["sensor/collector.py", 11]]);
+  const [r] = trees["magellanLite.reach"].getChildren();
+  assert.deepEqual([r.label, r.description], ["collector.sweep", "2 hops · 0.77"]);
+  assert.equal(vscode.seen.context["magellanLite.state"], "ready");
+
+  await vscode.seen.commands["magellanLite.team"]();
+  const [mate] = trees["magellanLite.team"].getChildren();
+  assert.deepEqual([mate.label, mate.description], ["braxton", "block · 1 conflict"]);
+  assert.equal(trees["magellanLite.team"].getChildren(mate)[0].description, "sensor/api.py:5");
+
+  const badge = vscode.seen.badges.provideFileDecoration({ fsPath: path.join(ROOT, "sensor", "collector.py") });
+  assert.equal(badge.badge, "1");
+  assert.equal(vscode.seen.badges.provideFileDecoration({ fsPath: path.join(ROOT, "sensor", "other.py") }), undefined);
+});
+
+test("when Python can't run Magellan Lite, the sidebar says so", async () => {
+  const vscode = fakeVscode();
+  const missing = Object.assign(new Error("exit 1"), { stderr: "No module named magellan_lite" });
+  const ext = activate({ subscriptions: [], extensionPath: __dirname },
+    { vscode, execFile: fakePython({ check: missing }).execFile });
+  await ext.first;
+  assert.equal(vscode.seen.context["magellanLite.state"], "failed");
 });
 
 test("the status bar is red on a block (TODO(faidh) 1)", { skip: "TODO(faidh) 1: status bar colours" }, async () => {

@@ -5,6 +5,8 @@
  *   saving a Python file             magellan-lite check: problems in the Problems panel (and
  *                                    squiggles on the lines), the verdict in the status bar
  *   Magellan Lite: Check this change the same, now
+ *   the Magellan Lite sidebar        Checklist, What it reaches, Team (sidebar.js), and finding
+ *                                    counts on files in the Explorer, like the full Magellan's
  *   Magellan Lite: Show the map      a panel: the change, what it reaches, the checklist
  *   Magellan Lite: Share my work...  magellan-lite share (your work in progress, for your team)
  *   Magellan Lite: Check against my team's work in progress
@@ -25,6 +27,7 @@ const path = require("path");
 const { execFile } = require("child_process");
 const lite = require("./lite");
 const { panelHtml, nonce } = require("./panel");
+const { installSidebar } = require("./sidebar");
 
 function activate(context, deps = {}) {
   const vscode = deps.vscode || require("vscode");
@@ -38,7 +41,15 @@ function activate(context, deps = {}) {
   const conflicts = sub(vscode.languages.createDiagnosticCollection("magellan-lite-team"));
   const status = sub(vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50));
   status.command = "magellanLite.showMap";
-  const state = { report: null, panel: null, timer: null };
+  status.text = "$(sync~spin) Magellan Lite";                // visible from the first moment
+  status.tooltip = folder() ? "Checking your change..." : "Open a folder to check it";
+  status.show();
+  out.appendLine(`Magellan Lite activated in ${folder() ? folder().uri.fsPath : "a window with no folder"}`);
+  const state = { report: null, team: null, panel: null, timer: null };
+  const sidebar = installSidebar(vscode, { folder, state, sub });
+  // the sidebar's empty views say which: checking, nofolder, failed (and how to fix it), ready
+  const setState = (s) => Promise.resolve(vscode.commands.executeCommand("setContext", "magellanLite.state", s)).catch(() => {});
+  setState(folder() ? "checking" : "nofolder");
 
   /** Run `python -m magellan_lite ...` in the folder: `{ data }` (its JSON), `{ text }`, or
    *  `{ error }` with something a person can act on. */
@@ -75,6 +86,7 @@ function activate(context, deps = {}) {
   }
 
   function failed(why) {
+    setState("failed");
     status.text = "$(alert) Magellan Lite";
     status.tooltip = why;
     status.backgroundColor = undefined;
@@ -89,6 +101,8 @@ function activate(context, deps = {}) {
     if (r.error) return failed(r.error), null;
     state.report = r.data;
     show(checks, lite.problems(r.data));
+    sidebar.refresh();
+    setState("ready");
     const s = lite.statusFor(r.data);
     status.text = s.text;
     status.tooltip = s.tip;
@@ -106,7 +120,9 @@ function activate(context, deps = {}) {
   async function team() {
     const r = await python(lite.teamArgs());
     if (r.error) return failed(r.error), null;
+    state.team = r.data;
     show(conflicts, lite.teamProblems(r.data));
+    sidebar.refresh();
     const broken = r.data.filter((c) => c.verdict !== "ok");
     vscode.window.showInformationMessage(!r.data.length
       ? "Magellan Lite: nobody on your team has shared work in progress yet (they run \"Share my work in progress\")."
@@ -153,6 +169,9 @@ function activate(context, deps = {}) {
   sub(vscode.commands.registerCommand("magellanLite.team", team));
   sub(vscode.commands.registerCommand("magellanLite.share", share));
   sub(vscode.commands.registerCommand("magellanLite.showMap", showMap));
+  sub(vscode.commands.registerCommand("magellanLite.showOutput", () => out.show(true)));
+  sub(vscode.commands.registerCommand("magellanLite.openAt", (rel, line) =>
+    openAt(rel, line).catch((e) => out.appendLine(`could not open ${rel}: ${e.message}`))));
   sub(vscode.workspace.onDidSaveTextDocument((doc) => {
     if (doc.languageId !== "python" || cfg().get("checkOnSave") === false) return;
     clearTimeout(state.timer);
