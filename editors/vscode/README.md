@@ -40,19 +40,19 @@ software failures on what it found, and gives the change one verdict: `ok`, `rev
 ## Quick start
 
 1. **Install the extension**: download
-   [magellan-lite-0.3.1.vsix](https://magellan-code.pages.dev/downloads/magellan-lite-0.3.1.vsix)
+   [magellan-lite.vsix](https://magellan-code.pages.dev/downloads/magellan-lite.vsix)
    from the website, then Extensions view → `...` → *Install from VSIX...* → pick it. Or one
    line that finds the file (here, in Downloads or on the Desktop), downloads it if it isn't
    there, and installs it. Windows PowerShell:
 
    ```powershell
-   $ProgressPreference='SilentlyContinue'; $f = (Get-ChildItem $PWD, "$HOME\Downloads", "$HOME\Desktop" -Filter 'magellan-lite-*.vsix' -EA 0 | Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName; if (!$f) { $f = "$env:TEMP\magellan-lite.vsix"; Invoke-WebRequest https://magellan-code.pages.dev/downloads/magellan-lite-0.3.1.vsix -OutFile $f }; code --install-extension $f --force
+   $ProgressPreference='SilentlyContinue'; $f = (Get-ChildItem $PWD, "$HOME\Downloads", "$HOME\Desktop" -Filter 'magellan-lite*.vsix' -EA 0 | Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName; if (!$f) { $f = "$env:TEMP\magellan-lite.vsix"; Invoke-WebRequest https://magellan-code.pages.dev/downloads/magellan-lite.vsix -OutFile $f }; code --install-extension $f --force
    ```
 
    macOS or Linux:
 
    ```sh
-   f=$(ls -t ./magellan-lite-*.vsix ~/Downloads/magellan-lite-*.vsix ~/Desktop/magellan-lite-*.vsix 2>/dev/null | head -1); [ -n "$f" ] || { f=/tmp/magellan-lite.vsix; curl -fsSL -o "$f" https://magellan-code.pages.dev/downloads/magellan-lite-0.3.1.vsix; }; code --install-extension "$f" --force
+   f=$(ls -t ./magellan-lite*.vsix ~/Downloads/magellan-lite*.vsix ~/Desktop/magellan-lite*.vsix 2>/dev/null | head -1); [ -n "$f" ] || { f=/tmp/magellan-lite.vsix; curl -fsSL -o "$f" https://magellan-code.pages.dev/downloads/magellan-lite.vsix; }; code --install-extension "$f" --force
    ```
 2. **Open a project and save a change.** The verdict appears in the status bar a moment later,
    and each finding on its line. That's all: there is nothing to configure.
@@ -191,18 +191,3 @@ up on the next save.
 | `media/walkthrough/` | the Get Started walkthrough's pages |
 | `bundle.js` | copies `magellan_lite/` into `engine/` when packaging (not committed) |
 | `test/` | `npm test`: the extension against a fake VS Code, a fake Python and a fake git |
-
-### Tasks
-
-Every task is a `TODO(<name>)` where the work goes, with numbered steps.
-
-**Faidh**:
-
-1. Done: the status bar turns red on block and yellow on review (`extension.js`).
-2. Done: the `magellanLite.showLow` setting hides low-severity findings from the Problems panel,
-   the Checklist and the Explorer badges (`lite.js`, `sidebar.js`).
-3. Done: the icon in the Extensions view (`media/icon.png`, from `media/readme/logo.png`).
-4. TODO(faidh) 4, here: once it runs for you, take a screenshot of a squiggle and the status bar
-   (the CrowdStrike-class example in `demo/incidents/sensor-signature-break` makes a good one),
-   save it as `media/readme/check.png`, and show it under the "Findings where the damage lands"
-   heading above with `![A squiggle where the damage lands](media/readme/check.png)`.
