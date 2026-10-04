@@ -97,6 +97,7 @@
 .scene3d-hint {
   position: absolute; right: 12px; bottom: 6px; margin: 0; font: 11px var(--font, system-ui, sans-serif);
   color: #7d8b9c; pointer-events: none;
+  max-width: calc(100% - 24px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;   /* one line, clear of the legend */
 }
 .view-switch { display: inline-flex; border: 1px solid var(--border, #2a3b52); border-radius: 999px; overflow: hidden; }
 .view-switch button {
@@ -113,3 +114,50 @@
 .scene3d-skull[aria-pressed="true"] { background: #c9b6ff; border-color: #c9b6ff; color: #111; }
 .scene3d-btn[disabled] { opacity: .45; cursor: default; }
 .scene3d-key.note { color: #7d8b9c; font-size: 11px; max-width: 260px; }
+
+/* The sub-graph's controls (js/subgraph-ui.js): the menu a right-click on a dot opens, and the
+   tabs above the viewport, the whole map first. Dark, like the stage they sit on; a page sets
+   --sg-tab-bg to its viewport's colour so the shown tab joins it. */
+.sg-menu {
+  position: fixed; z-index: 60; min-width: 200px; max-width: 300px; padding: 6px;
+  background: #142030; color: #e6edf3; border: 1px solid #2f4462; border-radius: 10px;
+  box-shadow: 0 18px 42px -12px rgba(0, 0, 0, .7); font: 13px/1.35 var(--font, system-ui, sans-serif);
+}
+.sg-menu-title {
+  margin: 2px 8px 6px; color: #93a1b1; font-size: 12px; font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sg-menu menu { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.sg-menu-item {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 14px; width: 100%;
+  text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: none; border: 0; border-radius: 6px; padding: 6px 10px;
+}
+.sg-menu-item:hover, .sg-menu-item:focus { background: #1f3048; outline: none; }
+.sg-menu-item:focus-visible { box-shadow: inset 0 0 0 1px #f2a93b; }
+.sg-menu-detail {
+  color: #7d8b9c; font: 11px var(--mono, ui-monospace, monospace);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px;
+}
+.sg-tabs {
+  display: flex; gap: 2px; overflow-x: auto; scrollbar-width: thin; padding: 0 1px;
+  box-shadow: inset 0 -1px 0 var(--sg-tab-line, #26384f);        /* the line the shown tab breaks */
+}
+.sg-tab {
+  position: relative; display: inline-flex; align-items: center; flex: none; max-width: 300px;
+  border: 1px solid transparent; border-bottom: 0; border-radius: 8px 8px 0 0; color: #93a1b1;
+}
+.sg-tab.on { background: var(--sg-tab-bg, #0b131e); color: #e6edf3; border-color: var(--sg-tab-line, #26384f); z-index: 1; }
+.sg-tab:not(.on):hover { background: rgba(255, 255, 255, .05); color: #dce4ee; }
+.sg-tab-name {
+  font: 600 12px var(--font, system-ui, sans-serif); color: inherit; background: none; border: 0; cursor: pointer;
+  padding: 6px 6px 7px 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.sg-tab.home .sg-tab-name { padding-right: 12px; }
+.sg-tab.home .sg-tab-name::before { content: "\25C6"; color: #f2a93b; margin-right: 6px; }
+.sg-tab-x {
+  flex: none; font: 15px/1 var(--font, system-ui, sans-serif); color: inherit; opacity: .55; cursor: pointer;
+  background: none; border: 0; border-radius: 4px; padding: 2px 5px 3px; margin-right: 5px;
+}
+.sg-tab-x:hover, .sg-tab-x:focus-visible { opacity: 1; background: rgba(255, 255, 255, .1); }
+.sg-tab-name:focus-visible, .sg-tab-x:focus-visible { outline: 2px solid #f2a93b; outline-offset: -2px; }

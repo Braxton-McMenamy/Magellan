@@ -76,7 +76,10 @@
 .overlap { margin-bottom: 22px; }
 .overlap ul { margin: 8px 0; }
 .map-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
-.map-head h3 { margin: 0; }
+.map-head h3 { margin: 0; overflow-wrap: anywhere; }
+.map-name { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.map-note { margin: -4px 0 10px; }
+.pick-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
 .map-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 #team-map.is-3d { padding: 0; overflow: hidden; --scene3d-h: 540px; }
 .map-wrap { margin-bottom: 22px; }
@@ -115,6 +118,7 @@ body.scene-page { background: var(--stage-bg); color: var(--stage-text); min-hei
 .scene-rail .note a { color: var(--accent); }
 .scene-main { padding: 18px 20px; min-width: 0; margin: 0; max-width: none; }   /* not section's centring: a grid item with auto margins shrinks to its content */
 .scene-title { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.scene-title > div:first-child { flex: 1 1 420px; min-width: 0; }    /* a long line wraps; the switch stays up */
 .scene-title h1 { font-size: 1.35rem; margin: 0 0 4px; }
 .scene-title p { margin: 0; color: var(--stage-muted); }
 .views { display: inline-flex; border: 1px solid var(--stage-border); border-radius: 999px; overflow: hidden; }
@@ -147,8 +151,13 @@ body.scene-page { background: var(--stage-bg); color: var(--stage-text); min-hei
   .scene-rail { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--stage-border); }
   .scene-main { padding: 14px 12px; }
 }
-.scene-stage:has(.scene3d) { padding: 0; }
+.scene-stage.is-3d { padding: 0; }
 .scene-stage .scene3d { --scene3d-h: max(420px, calc(100vh - 210px)); border-radius: var(--radius); }
+/* the tabs above the viewport (js/subgraph-ui.js): the shown one joins the stage below it */
+.scene-tabs { margin-top: 14px; --sg-tab-bg: var(--stage-bg); --sg-tab-line: var(--stage-border); }
+.scene-main:has(.scene-stage.is-3d) .scene-tabs { --sg-tab-bg: #0b131e; }
+.scene-layout.has-tabs .scene-stage { margin-top: 0; border-top: 0; border-radius: 0 0 var(--radius) var(--radius); }
+.scene-layout.has-tabs .scene-stage .scene3d { --scene3d-h: max(420px, calc(100vh - 241px)); border-radius: 0 0 var(--radius) var(--radius); }
 .scene-side .muted-id { font-family: var(--mono); font-size: .78rem; overflow-wrap: anywhere; opacity: .7; }
 .dead-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 2px; }
 .dead-list button {
@@ -157,9 +166,17 @@ body.scene-page { background: var(--stage-bg); color: var(--stage-text); min-hei
 }
 .dead-list button:hover, .dead-list button:focus-visible { background: var(--stage-surface); outline: none; }
 .dead-name { color: #c9b6ff; font-weight: 600; overflow-wrap: anywhere; }
+.def-name { color: var(--stage-text); font-weight: 600; overflow-wrap: anywhere; }
 .dead-list .where { overflow-wrap: anywhere; font-size: .8rem; }
 .follow-btn {
   font: 600 .88rem var(--font); cursor: pointer; border-radius: 999px; padding: 5px 14px;
   background: #f2a93b; color: #111; border: 0;
 }
 .follow-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.node-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.sub-btn {
+  font: 600 .85rem var(--font); cursor: pointer; border-radius: 999px; padding: 4px 13px;
+  background: none; color: var(--stage-text); border: 1px solid var(--stage-border);
+}
+.sub-btn:hover { border-color: #f2a93b; }
+.sub-btn:focus-visible { outline: 2px solid #f2a93b; outline-offset: 2px; }

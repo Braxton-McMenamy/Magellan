@@ -2,13 +2,15 @@
 // coloured by the change. It takes the same map as the 2D flow view (js/map.js) and the same
 // options, so a page can switch between the two:
 //
-//   const view = MagellanScene3D.render(box, map, { people, onPick(node), onOpen(node), label });
+//   const view = MagellanScene3D.render(box, map, { people, onPick(node), onOpen(node), onContext(node, event), label });
 //   view.destroy();
 //
 // The 2D flow view reads the change hop by hop; this one shows where it sits in the whole
 // project. Drag to turn, wheel to fly, double-click to open, F to fly to the picked dot,
 // Home to see everything again. The skull lights up code nothing in the project calls or reads
-// (opts.onDead(list) hears about it, to list it beside the view).
+// (opts.onDead(list) hears about it, to list it beside the view). opts.onContext hears a
+// right-click on a dot -- a click, not a right-drag, which pans -- or the menu key on the picked
+// one, so the page can offer its sub-graph (js/subgraph-ui.js).
 
 window.MagellanScene3D = (() => {
   const G = window.MagellanGraph3D;
@@ -59,12 +61,42 @@ window.MagellanScene3D = (() => {
       ...n, name: n.label || String(n.id).split(".").pop(), kind: KIND[n.kind] || n.kind,
       dependents: into.get(n.id) || 0, impact: n.change ? 0 : n.score || 0,
     }));
-    const centre = nodes.find((n) => n.change && !n.removed) || nodes.find((n) => n.finding);
+    // a sub-graph (js/subgraph.js) centres on its seed: the most depended-on one of a file's
+    const seeds = nodes.filter((n) => n.seed && !n.removed).sort((a, b) => (into.get(b.id) || 0) - (into.get(a.id) || 0));
+    const centre = seeds[0] || nodes.find((n) => n.change && !n.removed) || nodes.find((n) => n.finding);
     return {
       nodes: out,
       edges: edges.map((e) => ({ src: e.src, dst: e.dst, kind: e.kind, confidence: e.guess ? 0.5 : 1 })),
       center: centre ? centre.id : null,
     };
+  }
+
+  /**
+   * A right-click on a dot, for opts.onContext. A right-drag pans (graph3d), so only a press and
+   * release in the same place counts, judged on the release: some systems send "contextmenu" on
+   * the press, before anyone knows it is a drag. From the keyboard, the menu key or Shift+F10
+   * asks about the picked dot, and the menu opens where it is drawn.
+   */
+  function context(canvas, view, fn) {
+    let down = null;
+    canvas.addEventListener("mousedown", (e) => {
+      if (e.button !== 2) return;
+      const r = canvas.getBoundingClientRect();
+      down = { x: e.clientX, y: e.clientY, node: view.hit(e.clientX - r.left, e.clientY - r.top) };
+    });
+    canvas.addEventListener("mouseup", (e) => {
+      const d = down;
+      down = null;
+      if (e.button !== 2 || !d || !d.node || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return;
+      fn(d.node, e);
+    });
+    canvas.addEventListener("keydown", (e) => {
+      if (!(e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) || !view.selected) return;
+      e.preventDefault();
+      const n = view.selected, p = view.project([n.x, n.y, n.z]), r = canvas.getBoundingClientRect();
+      fn(n, { type: "keyboard", target: canvas,
+        clientX: r.left + (p ? p.x : r.width / 2), clientY: r.top + (p ? p.y : r.height / 2) });
+    });
   }
 
   const el = (tag, cls, text) => {
@@ -175,7 +207,9 @@ window.MagellanScene3D = (() => {
       }
     }
     legend();
-    wrap.append(el("p", "scene3d-hint", "drag to turn · wheel to fly · double-click to open · F to fly to the picked dot"));
+    wrap.append(el("p", "scene3d-hint", "drag to turn · wheel to fly · double-click to open · F to fly to the picked dot"
+      + (opts.onContext ? " · right-click: sub-graph" : "")));
+    if (opts.onContext) context(canvas, view, (n, at) => opts.onContext(byId.get(n.id) || n, at));
 
     // keep the canvas sized to its box
     const resize = () => view.resize();

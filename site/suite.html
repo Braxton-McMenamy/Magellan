@@ -92,19 +92,24 @@
 
       <div role="tabpanel" id="panel-team" aria-labelledby="tab-team">
         <div class="map-head">
-          <h3 id="map-title">The project</h3>
+          <div class="map-name">
+            <button class="button small-button" type="button" id="map-back" hidden>← whole project</button>
+            <h3 id="map-title">The project</h3>
+          </div>
           <div class="map-tools">
             <div class="view-switch" id="map-views" role="group" aria-label="View">
               <button type="button" data-view="3d" aria-pressed="true" title="The whole project in 3D">3D</button>
               <button type="button" data-view="flow" aria-pressed="false" title="The changes, hop by hop">Flow</button>
             </div>
-            <a class="button small-button" href="scene.html#team">Open in the Scene →</a>
+            <a class="button small-button" id="map-scene" href="scene.html#team">Open in the Scene →</a>
           </div>
         </div>
+        <p id="map-note" class="muted small map-note" hidden></p>
         <div class="map-wrap">
           <div id="team-map" class="map-box card"></div>
           <aside id="team-pick" class="pick card" aria-live="polite">
-            <p class="muted small">Pick a dot to see what it is, who changed it, and what was found there.</p>
+            <p class="muted small">Pick a dot to see what it is, who changed it, and what was found there.
+              Right-click it for its sub-graph.</p>
           </aside>
         </div>
         <div id="team-empty" class="card empty" hidden>
@@ -142,6 +147,8 @@
   <script src="js/map.js"></script>
   <script src="js/graph3d.js"></script>
   <script src="js/scene3d.js"></script>
+  <script src="js/subgraph.js"></script>
+  <script src="js/subgraph-ui.js"></script>
   <script src="js/github.js"></script>
   <script src="js/teamfeed.js"></script>
   <script src="js/suite.js"></script>

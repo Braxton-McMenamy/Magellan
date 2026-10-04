@@ -313,6 +313,13 @@ Beside the home page:
   left out). Before a repository is connected, the Scene shows Magellan Lite's own code
   (`data/project.js`), so there is always something to explore.
 
+  Sub-graphs (`js/subgraph.js`, `js/subgraph-ui.js`): right-click any dot (or use the buttons
+  in its properties) for **Show sub-graph** (what depends on it two hops back and what it uses
+  one hop ahead) or **Sub-graph of its file**. Each opens as a tab of its own above the
+  viewport, with its own camera and 3D/Flow choice; `[` and `]` switch tabs, and the address
+  keeps the open one (`#itself/sub=<id>`). The Team suite draws one in place of the project
+  map (← whole project to go back), and the editor's map panel has the same tabs.
+
 `site/data/` is written by `python demo/build_site.py`: the replayed incidents, the hero, the
 Scene's first picture (`project.js`), the
 rules, the Try-it examples (each checked to give the verdict it promises) and the engine

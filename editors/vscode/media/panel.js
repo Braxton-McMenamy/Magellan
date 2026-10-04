@@ -136,45 +136,153 @@
   }
 
   // Two views of the same map, as on the website: Flow (the change, hop by hop: map.js) and 3D
-  // (the whole project as clusters on a sphere: graph3d.js through scene3d.js). The choice is
-  // kept in the webview's state, so it survives the panel being hidden and shown.
-  let mode = (api.getState && api.getState() && api.getState().view) || "flow";
-  let view = null;          // what the view returned: { play, finish } (and destroy, for 3D)
-  let drawnWidth = 0;       // the map's width when it was drawn
-  function drawMap(report, animate) {
-    const box = $("#graph");
-    const map = report.map || MagellanMap.fromReport(report);
-    drawnWidth = box.clientWidth;
-    if (view && view.destroy) view.destroy();
-    $("#replay").hidden = mode === "3d";
-    $("#graph").classList.toggle("is-3d", mode === "3d");
-    $("#views").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === mode)));
-    if (mode === "3d") {
+  // (the whole project as clusters on a sphere: graph3d.js through scene3d.js). The whole map's
+  // choice is kept in the webview's state, so it survives the panel being hidden and shown.
+  //
+  // Right-click a definition for its sub-graph (subgraph.js): it, what depends on it and what it
+  // uses, or a whole file and what touches it, in a tab of its own above the map. Each tab keeps
+  // its own map, view and box (a hidden 3D view keeps its camera); [ and ] step through them.
+  const SG = MagellanSubgraph, UI = MagellanSubgraphUI;
+  const MAIN_TITLE = $("#stage-title").textContent;
+  let scenes = [];          // the whole map first: { id, spec, mode, pane, view, sub, title, line, stale, width }
+  let shown = null;         // the scene on screen
+  let visited = [];         // the order tabs were shown in, to go back to when one closes
+  let seq = 0;
+
+  function newScene(spec, mode) {
+    const pane = h("div", { class: "scene-pane", hidden: true });
+    $("#graph").append(pane);
+    const scene = { id: `s${seq++}`, spec, mode, pane, view: null, sub: null, title: "", line: "", stale: true, width: 0 };
+    scenes.push(scene);
+    return scene;
+  }
+  const main = () => scenes[0] || newScene(null, (api.getState && api.getState() && api.getState().view) || "flow");
+  const wholeMap = () => current.map || MagellanMap.fromReport(current);
+
+  /** A scene's map now: the report's, or the sub-graph drawn from it (Flow reads it its way). */
+  function mapOf(scene) {
+    if (!scene.spec) return wholeMap();
+    const sub = SG.build(wholeMap(), scene.spec);
+    if (sub.nodes.length || !scene.sub) scene.sub = sub;        // gone from the new check: keep the last
+    scene.title = SG.title(scene.sub);
+    scene.line = SG.describe(scene.sub) + (sub.nodes.length ? "" : " (Not in the latest check.)");
+    return scene.mode === "flow" ? SG.flow(scene.sub) : scene.sub;
+  }
+
+  /** Draw a scene into its box (on screen: the renderers size to it). */
+  function drawScene(scene, animate) {
+    if (scene.view && scene.view.destroy) scene.view.destroy();
+    const map = mapOf(scene);
+    const box = scene.pane;
+    scene.width = box.clientWidth;
+    scene.stale = false;
+    const onContext = (node, event, g) => menu(scene, node, event, g);
+    if (scene.mode === "3d") {
       // exploring turns and picks; a double-click opens the file
-      view = MagellanScene3D.render(box, map, {
-        label: "The whole project in 3D, coloured by the change",
+      scene.view = MagellanScene3D.render(box, map, {
+        label: scene.spec ? scene.title : "The whole project in 3D, coloured by the change",
         onPick() {},
         onOpen(node) { open(node.path, node.line); },
+        onContext,
       });
       return;
     }
-    view = MagellanMap.render(box, map, {
+    scene.view = MagellanMap.render(box, map, {
       animate,
+      heads: scene.spec ? SG.heads(scene.sub) : undefined,
       // a click (or Enter) on a definition opens its file at its line
       onPick(node, g) {
-        box.querySelectorAll(".node.picked").forEach((n) => n.classList.remove("picked"));
-        g.classList.add("picked");
+        mark(box, g);
         open(node.path, node.line);
       },
+      onContext,
     });
-    if (animate) view.play();
+    if (animate) scene.view.play();
   }
-  $("#replay").addEventListener("click", () => view && view.play());
+  const mark = (box, g) => {
+    box.querySelectorAll(".node.picked").forEach((n) => n.classList.remove("picked"));
+    if (g) g.classList.add("picked");
+  };
+
+  /** Put a scene on screen: its box, its view's switch, its title; draw it if it is out of date. */
+  function show(scene, animate = false) {
+    UI.close();
+    if (shown && shown !== scene) {
+      shown.pane.hidden = true;
+      if (shown.view && shown.view.view) shown.view.view.stop();     // a hidden 3D view rests
+    }
+    shown = scene;
+    visited = visited.filter((s) => s !== scene).concat(scene);
+    scene.pane.hidden = false;
+    $("#replay").hidden = scene.mode === "3d";
+    $("#graph").classList.toggle("is-3d", scene.mode === "3d");
+    $("#views").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === scene.mode)));
+    if (scene.stale || !scene.view) drawScene(scene, animate);
+    else if (scene.view.view) { scene.view.view.resize(); scene.view.view.dirty = true; scene.view.view.start(); }
+    $("#stage-title").textContent = scene.spec ? scene.title : MAIN_TITLE;
+    if (scene.spec) fill($("#stage-lede"), scene.line);
+    else drawLede(current.changes || [], current.affected || []);
+    strip();
+  }
+
+  /** Open a sub-graph in a tab of its own, or show the tab that has it. */
+  function openSub(spec) {
+    const had = scenes.find((s) => SG.same(s.spec, spec));
+    if (had) return show(had);
+    if (!SG.build(wholeMap(), spec).nodes.length) return;
+    show(newScene(spec, shown ? shown.mode : main().mode), true);
+  }
+
+  /** Close a sub-graph's tab, back to the one shown before it. */
+  function closeScene(scene) {
+    if (!scene || !scene.spec) return;
+    if (scene.view && scene.view.destroy) scene.view.destroy();
+    scene.pane.remove();
+    scenes = scenes.filter((s) => s !== scene);
+    visited = visited.filter((s) => s !== scene);
+    if (shown === scene) { shown = null; show(visited[visited.length - 1] || main()); } else strip();
+  }
+
+  function strip() {
+    UI.strip($("#scenes"), scenes.map((s) => ({
+      id: s.id, closable: !!s.spec, title: s.spec ? s.title : "Whole map",
+      hint: s.spec ? s.line : "The change, and the whole project around it",
+    })), shown && shown.id, {
+      onPick: (t) => show(scenes.find((s) => s.id === t.id)),
+      onClose: (t) => closeScene(scenes.find((s) => s.id === t.id)),
+      away: () => shown && shown.pane.querySelector("canvas, .node[tabindex]"),
+    });
+  }
+  UI.keys((step) => {
+    if (scenes.length < 2 || !shown) return;
+    show(scenes[(scenes.indexOf(shown) + step + scenes.length) % scenes.length]);
+  });
+
+  /** The right-click menu on a definition: its sub-graph, its file's, and opening it. */
+  function menu(scene, node, event, g) {
+    mark(scene.pane, g);
+    const file = node.path ? node.path.split("/").pop() : "";
+    UI.menu(event, node.label || node.id, [
+      { label: "Show sub-graph", run: () => openSub({ ids: [node.id] }) },
+      node.path && { label: "Sub-graph of its file", detail: file, run: () => openSub({ file: node.path }) },
+      node.path && { label: "Open file", detail: `line ${node.line}`, run: () => open(node.path, node.line) },
+    ]);
+  }
+
+  /** A new report: every scene draws from it, the one on screen now and the rest when shown. */
+  function drawMap(report, animate) {
+    scenes.forEach((s) => { s.stale = true; });
+    const scene = shown || main();
+    show(scene, animate && !scene.spec);
+  }
+
+  $("#replay").addEventListener("click", () => shown && shown.view && shown.view.play && shown.view.play());
   $("#views").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
-    if (mode === b.dataset.view) return;
-    mode = b.dataset.view;
-    if (api.setState) api.setState({ ...(api.getState && api.getState()), view: mode });
-    if (current) drawMap(current, mode === "flow");
+    if (!shown || shown.mode === b.dataset.view) return;
+    shown.mode = b.dataset.view;
+    if (!shown.spec && api.setState) api.setState({ ...(api.getState && api.getState()), view: shown.mode });
+    shown.stale = true;
+    if (current) show(shown, shown.mode === "flow");
   }));
 
   // the panel was resized (a side panel often is): draw the map again for the new width,
@@ -183,9 +291,9 @@
   new ResizeObserver(() => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      const w = $("#graph").clientWidth;
-      if (mode === "3d") return;                       // the 3D view sizes itself
-      if (current && w && Math.abs(w - drawnWidth) > 24) drawMap(current, false);
+      if (!current || !shown || shown.mode === "3d") return;     // the 3D view sizes itself
+      const w = shown.pane.clientWidth;
+      if (w && Math.abs(w - shown.width) > 24) drawScene(shown, false);
     }, 150);
   }).observe($("#graph"));
 

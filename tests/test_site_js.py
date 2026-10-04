@@ -1,5 +1,5 @@
 """The website's JavaScript that has rules to keep (tests/js/*.test.js), run with Node when it
-is installed: the Team suite's GitHub reader."""
+is installed: the Team suite's GitHub reader, and the sub-graphs the maps open."""
 
 import shutil
 import subprocess

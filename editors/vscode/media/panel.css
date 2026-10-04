@@ -49,7 +49,8 @@ code { font-family: var(--mono); color: inherit; background: none; padding: 0; b
   flex-wrap: wrap; margin-bottom: 12px;
 }
 .brand { display: flex; align-items: center; gap: 7px; margin: 0; font-weight: 600; white-space: nowrap; min-width: 0; }
-.mark { color: var(--accent); font-size: 1.05em; }
+.mark { display: inline-flex; color: var(--accent); }
+.mark svg { width: 16px; height: 16px; }
 .repo {
   overflow: hidden; text-overflow: ellipsis; padding: 0 8px; border: 1px solid var(--border);
   border-radius: 999px; color: var(--muted); font: 11px/18px var(--mono);
@@ -75,12 +76,15 @@ code { font-family: var(--mono); color: inherit; background: none; padding: 0; b
   padding: 0 8px; text-align: center;
 }
 .logo {
-  display: grid; place-items: center; width: 96px; height: 96px; margin-bottom: 8px;
-  border-radius: 50%; color: var(--accent);
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 22%, transparent) 0%, transparent 68%);
+  display: grid; place-items: center; width: 132px; height: 132px; margin-bottom: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 20%, transparent) 0%, transparent 68%);
 }
-.logo svg { width: 54px; height: 54px; animation: beckon 3.2s ease-in-out infinite; }
-@keyframes beckon { 50% { transform: scale(1.06); filter: drop-shadow(0 0 10px color-mix(in srgb, var(--accent) 55%, transparent)); } }
+.logo svg {
+  width: 84px; height: 84px; border-radius: 18px; animation: beckon 3.2s ease-in-out infinite;
+  box-shadow: 0 14px 30px -16px rgba(0, 0, 0, .55);
+}
+@keyframes beckon { 50% { transform: scale(1.05); filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 45%, transparent)); } }
 .welcome p { margin: 0 0 14px; font-size: 1.08em; color: var(--muted); }
 
 /* -- the verdict -------------------------------------------------------------------------- */
@@ -289,3 +293,10 @@ body:not(.vscode-light):not(.vscode-high-contrast-light) .verdict {
 .stage .view-switch button[aria-pressed="true"] { background: #f2a93b; color: #111; }
 #graph.is-3d { padding: 0; --scene3d-h: 480px; }
 
+
+/* the tabs above the map: the whole map, then each sub-graph (subgraph-ui.js); the shown one
+   joins the map's box below it */
+.stage .sg-tabs { margin-top: 2px; --sg-tab-bg: #070c12; --sg-tab-line: var(--stage-border); }
+.stage:has(#graph.is-3d) .sg-tabs { --sg-tab-bg: #0b131e; }
+.stage .sg-tabs:not([hidden]) + .map-box { border-top: 0; border-radius: 0 0 12px 12px; }
+.stage .sg-tabs:not([hidden]) + .map-box .scene3d { border-radius: 0 0 12px 12px; }

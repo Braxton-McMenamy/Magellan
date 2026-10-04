@@ -4,6 +4,8 @@
     "site/js/map.js": "media/map.js",
     "site/js/graph3d.js": "media/graph3d.js",
     "site/js/scene3d.js": "media/scene3d.js",
+    "site/js/subgraph.js": "media/subgraph.js",
+    "site/js/subgraph-ui.js": "media/subgraph-ui.js",
     "site/css/map.css": "media/map.css"
   }
 }
