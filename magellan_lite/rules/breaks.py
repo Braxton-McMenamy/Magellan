@@ -14,6 +14,19 @@ from magellan_lite.findings import Finding, change_rule
              fix="Update the call, or give the new parameter a default so existing calls "
                  "keep working.")
 def signature_break(ctx):
+    return list(_python_signature_breaks(ctx)) + _other_languages(ctx, "signature-break")
+
+
+def _other_languages(ctx, rule_id: str) -> list[Finding]:
+    """The same break in C, Java, Fortran, COBOL, ...: their frontends judge their call sites
+    (languages.py)."""
+    if all(p.endswith(".py") for p in set(ctx.before.files) | set(ctx.after.files)):
+        return []
+    from magellan_lite import languages
+    return [f for f in languages.findings(ctx) if f.rule == rule_id]
+
+
+def _python_signature_breaks(ctx):
     """A call that fit the old signature and does not fit the new one."""
     edited = {c.name for c in ctx.changes}
     seen = set()
@@ -42,6 +55,10 @@ def signature_break(ctx):
 @change_rule("removed-still-referenced", "critical", blocking=True,
              fix="Restore it, or update the code that still uses it in the same change.")
 def removed_still_referenced(ctx):
+    return list(_python_removed(ctx)) + _other_languages(ctx, "removed-still-referenced")
+
+
+def _python_removed(ctx):
     """Code that still calls, reads or imports something the change deleted or renamed."""
     seen = set()
     for c in ctx.changes:

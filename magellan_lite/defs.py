@@ -66,6 +66,8 @@ class Definition:
     body: str = ""          # hash of the body's syntax tree
     value: str = ""         # constants: the value's source
     params: Params | None = None     # callables: what a call must pass
+    lang: str = ""          # "" for Python; otherwise the language (languages.py)
+    label: str = ""         # how a person reads the name, when it isn't the last dotted part
 
     @property
     def short(self) -> str:
@@ -160,11 +162,15 @@ def definitions_in(tree: ast.Module, path: str) -> list[Definition]:
 
 
 def definitions(snapshot: Snapshot) -> dict[str, Definition]:
-    """``{name: Definition}`` for the whole snapshot. A name defined twice keeps the last."""
+    """``{name: Definition}`` for the whole snapshot. A name defined twice keeps the last.
+    Python is read here; the other languages by their own frontends (languages.py)."""
     out: dict[str, Definition] = {}
     for path in sorted(snapshot.files):
-        tree = snapshot.tree(path)
+        tree = snapshot.tree(path) if path.endswith(".py") else None
         if tree is not None:
             for d in definitions_in(tree, path):
                 out[d.name] = d
+    if any(not p.endswith(".py") for p in snapshot.files):
+        from magellan_lite import languages
+        out.update(languages.definitions(snapshot))
     return out

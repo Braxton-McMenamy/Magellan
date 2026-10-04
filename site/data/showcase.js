@@ -22,11 +22,32 @@ self.MAGELLAN_SHOWCASE = {
    "fix": "Catch what you expect, e.g. `except ValueError:`."
   },
   {
+   "id": "call-using-mismatch",
+   "severity": "critical",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Make every CALL ... USING pass what the called program's LINKAGE SECTION now expects."
+  },
+  {
+   "id": "common-layout-mismatch",
+   "severity": "critical",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Declare the COMMON block the same way in every unit: one INCLUDE file or a module."
+  },
+  {
    "id": "compare-to-none",
    "severity": "low",
    "blocking": false,
    "kind": "file",
    "fix": "Use `is None` / `is not None`."
+  },
+  {
+   "id": "copybook-layout-changed",
+   "severity": "critical",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Recompile every program that copies the copybook, and convert data written with the old layout."
   },
   {
    "id": "debug-leftover",
@@ -36,11 +57,46 @@ self.MAGELLAN_SHOWCASE = {
    "fix": "Remove it before committing (use logging for output)."
   },
   {
+   "id": "enum-values-shifted",
+   "severity": "high",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Add new members at the end, or give each one an explicit value, so stored and exchanged numbers keep their meaning."
+  },
+  {
+   "id": "fall-through-changed",
+   "severity": "medium",
+   "blocking": false,
+   "kind": "change",
+   "fix": "Check the paragraphs control now falls into."
+  },
+  {
+   "id": "implicit-interface-arg-mismatch",
+   "severity": "critical",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Give the routine an explicit interface (a module), then fix the calls."
+  },
+  {
+   "id": "intent-out-read-before-write",
+   "severity": "high",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Set the INTENT(OUT) argument before reading it, or make it INTENT(INOUT)."
+  },
+  {
    "id": "leap-day-date",
    "severity": "high",
    "blocking": true,
    "kind": "file",
    "fix": "Add a timedelta instead (days=365), or handle February 29 yourself (fall back to February 28)."
+  },
+  {
+   "id": "legacy-construct-introduced",
+   "severity": "low",
+   "blocking": false,
+   "kind": "change",
+   "fix": "Prefer the structured form (EVALUATE, PERFORM, inline code) to GO TO and ALTER."
   },
   {
    "id": "loop-without-progress",
@@ -50,11 +106,46 @@ self.MAGELLAN_SHOWCASE = {
    "fix": "Make every way through the loop change what its condition reads, or leave the loop (break, return or raise) where it cannot."
   },
   {
+   "id": "move-truncates",
+   "severity": "high",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Widen the receiving field, or check the value fits before the MOVE."
+  },
+  {
    "id": "mutable-default-argument",
    "severity": "medium",
    "blocking": false,
    "kind": "file",
    "fix": "Default to None and build the container inside the function."
+  },
+  {
+   "id": "non-exhaustive-match",
+   "severity": "medium",
+   "blocking": false,
+   "kind": "change",
+   "fix": "Handle the new member, or add a default that fails loudly."
+  },
+  {
+   "id": "overload-rebinds-call",
+   "severity": "high",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Make the call pick the overload it means (a cast, or a distinct name)."
+  },
+  {
+   "id": "perform-thru-range-changed",
+   "severity": "high",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Check every PERFORM ... THRU that spans the paragraphs you moved or added."
+  },
+  {
+   "id": "reads-unset-local",
+   "severity": "medium",
+   "blocking": false,
+   "kind": "change",
+   "fix": "Give the variable a value on every path before it is read."
   },
   {
    "id": "regex-catastrophic-backtracking",
@@ -83,6 +174,27 @@ self.MAGELLAN_SHOWCASE = {
    "blocking": true,
    "kind": "change",
    "fix": "Update the call, or give the new parameter a default so existing calls keep working."
+  },
+  {
+   "id": "struct-layout-change",
+   "severity": "high",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Rebuild everything that includes the header, and check code that reads the struct as raw bytes."
+  },
+  {
+   "id": "unhandled-new-member",
+   "severity": "medium",
+   "blocking": false,
+   "kind": "change",
+   "fix": "Handle the new member everywhere the type is switched on."
+  },
+  {
+   "id": "unreachable-statement",
+   "severity": "high",
+   "blocking": true,
+   "kind": "change",
+   "fix": "Put the guarded statements in braces: what is indented under the if is not inside it."
   },
   {
    "id": "unsynchronized-shared-state",

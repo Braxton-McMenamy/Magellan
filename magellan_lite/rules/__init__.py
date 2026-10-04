@@ -17,6 +17,10 @@ from magellan_lite.rules import assert_tuple, bare_except, compare_none, debug_l
 #   bare_except.py -> assert_tuple.py -> compare_none.py -> debug_leftover.py
 #   Each one says exactly what to do, and its test tells you when you're done.
 
+# The other languages' own checks (a COBOL copybook whose layout moved, a C `goto fail`, a
+# Fortran COMMON block that no longer lines up): languages.py runs them, this lists them.
+from magellan_lite.rules import languages  # noqa: F401
+
 # The famous failures, one rule each (demo/incidents/ replays them: `python demo/run.py`).
 from magellan_lite.rules import dates  # noqa: F401      leap-day-date: Azure, 2012
 from magellan_lite.rules import reuse  # noqa: F401      reused-value: Knight Capital, 2012

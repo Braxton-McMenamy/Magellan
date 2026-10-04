@@ -84,6 +84,9 @@ def check_snapshots(before: Snapshot, after: Snapshot, root: Path, against: str)
             report.errors.append(f"rule {r.id} failed: {type(exc).__name__}: {exc}")
 
     report.errors += sorted(after.errors.values())
+    if any(not p.endswith(".py") for p in after.files):
+        from magellan_lite import languages
+        report.errors += languages.errors(after)
     report.findings.sort(key=lambda f: (f.rank, f.path, f.line, f.rule))
     return report
 

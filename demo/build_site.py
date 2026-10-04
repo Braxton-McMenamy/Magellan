@@ -196,6 +196,11 @@ def engine() -> dict:
     for p in sorted(pkg.rglob("*.py")):
         if p.parent == pkg and p.name in NOT_IN_BROWSER:
             continue
+        # the other languages' frontends (26k lines): not in the browser yet. TODO(site): ship
+        # them as their own data/polyglot.js, loaded by the Team suite's worker only when a
+        # repository has C, Java, Fortran or COBOL files (site/js/engine-worker.js).
+        if "polyglot" in p.relative_to(pkg).parts:
+            continue
         # read_text turns CRLF into LF: the bundle is the same on every OS
         files[p.relative_to(ROOT).as_posix()] = p.read_text(encoding="utf-8")
     return {"version": __version__, "files": files}

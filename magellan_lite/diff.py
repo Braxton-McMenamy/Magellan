@@ -55,7 +55,7 @@ def diff(before: dict[str, Definition], after: dict[str, Definition]) -> list[Ch
             out.append(Change("value", name, a.path, a.line, before=b, after=a))
         elif a.body != b.body:
             out.append(Change("body", name, a.path, a.line, before=b, after=a))
-    out = _pair_renames(out)
+    out = _pair_overloads(_pair_renames(out))
     out.sort(key=lambda c: (KINDS.index(c.kind), c.path, c.line))
     return out
 
@@ -87,6 +87,32 @@ def _pair_renames(changes: list[Change]) -> list[Change]:
                                   before=old.before, after=now.after))
             paired |= {id(old), id(now)}
     return [c for c in changes if id(c) not in paired] + renames
+
+
+def _pair_overloads(changes: list[Change]) -> list[Change]:
+    """In Java (and C++) the parameter types are part of a method's name: adding a parameter
+    to ``area(double,double)`` deletes it and adds ``area(double,double,double)``. When one
+    method of a name goes and one comes, in the same file, that is its signature changing."""
+    def stem(d: Definition) -> tuple:
+        return d.path, d.kind, d.name.split("(", 1)[0]
+
+    removed: dict[tuple, list[Change]] = defaultdict(list)
+    added: dict[tuple, list[Change]] = defaultdict(list)
+    for c in changes:
+        if c.kind == "removed" and c.before.lang and "(" in c.before.name:
+            removed[stem(c.before)].append(c)
+        elif c.kind == "added" and c.after.lang and "(" in c.after.name:
+            added[stem(c.after)].append(c)
+    paired: set[int] = set()
+    out: list[Change] = []
+    for k, gone in removed.items():
+        new = added.get(k, [])
+        if len(gone) == 1 and len(new) == 1:
+            old, now = gone[0], new[0]
+            out.append(Change("signature", now.name, now.path, now.line,
+                              before=old.before, after=now.after))
+            paired |= {id(old), id(now)}
+    return [c for c in changes if id(c) not in paired] + out
 
 
 Spans = dict[str, list[tuple[int, int]]]

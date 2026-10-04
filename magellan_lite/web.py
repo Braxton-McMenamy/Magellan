@@ -18,6 +18,8 @@ from magellan_lite.source import Snapshot, module_name
 
 #: past this many definitions the map keeps only the change's neighbourhood
 MAX_NODES = 60
+#: the whole project, for the 3D scene: past this many, the best connected definitions
+PROJECT_NODES = 1200
 
 
 def check_with_map(before: dict[str, str], after: dict[str, str]) -> dict:
@@ -36,9 +38,11 @@ def team_live(base: dict[str, str], works: dict[str, dict[str, str]]) -> dict:
 
     - ``members``: each person's own check, with its map (``name`` plus ``Report.to_dict()``);
     - ``pairs``: for each two people, the problems only their two changes together have;
-    - ``team``: everyone's changes applied at once, checked, with a map whose nodes say whose
-      change made them (``by``) and whose change reaches them (``reached_by``). A file two
-      people both changed is taken from the first of them by name, and listed in ``overlap``.
+    - ``team``: everyone's changes applied at once, checked, with a map of the whole project
+      (up to ``PROJECT_NODES`` definitions) whose nodes say whose change made them (``by``) and
+      whose change reaches them (``reached_by``). A file two people both changed is taken from
+      the first of them by name, and listed in ``overlap``. With nobody's work yet, it is the
+      project as it is: something to look at from the first moment.
     """
     root = Path(".")
     b = Snapshot(dict(base), "base")
@@ -71,7 +75,7 @@ def team_live(base: dict[str, str], works: dict[str, dict[str, str]]) -> dict:
                 together.pop(path, None)
     t = derive(b, together, "team")
     team = check_snapshots(b, t, root, "team").to_dict()
-    team["map"] = code_map(b, t, team)
+    team["map"] = code_map(b, t, team, PROJECT_NODES, whole=True)     # the whole project
     changed_by = {n: {c.name for c in alone[n].changes} for n in names}
     reached_by = {n: {a["name"] for a in alone[n].affected} for n in names}
     for node in team["map"]["nodes"]:
@@ -81,9 +85,13 @@ def team_live(base: dict[str, str], works: dict[str, dict[str, str]]) -> dict:
     return {"members": members, "pairs": pairs, "team": team}
 
 
-def code_map(before: Snapshot, after: Snapshot, report: dict) -> dict:
+def code_map(before: Snapshot, after: Snapshot, report: dict, limit: int = MAX_NODES,
+             whole: bool = False) -> dict:
     """The definitions of the new version (and the ones the change deleted) and who calls or
     reads whom, each marked with what the change did to it: ``{"nodes": [...], "edges": [...]}``.
+
+    Past ``limit`` definitions only the change's neighbourhood is kept -- or, with ``whole``
+    (the project map the 3D scene draws), the neighbourhood and then the best connected rest.
     """
     before_defs, after_defs = definitions(before), definitions(after)
     graph = build_graph(after, after_defs, before_defs)
@@ -101,13 +109,20 @@ def code_map(before: Snapshot, after: Snapshot, report: dict) -> dict:
             edges.append({"src": e.src, "dst": e.dst, "kind": e.kind, "guess": e.guess})
 
     keep = set(defs)
-    if len(keep) > MAX_NODES:                   # the change, what it reaches, their neighbours
+    if len(keep) > limit:                       # the change, what it reaches, their neighbours
         core = set(changed) | set(affected) | {n for n, (d, _) in defs.items()
                                               if _has_finding(d, report["findings"])}
         near = {e["src"] for e in edges if e["dst"] in core} | \
                {e["dst"] for e in edges if e["src"] in core}
-        keep = set(sorted(core)[:MAX_NODES])
-        keep |= set(sorted(near - keep)[:max(0, MAX_NODES - len(keep))])
+        keep = set(sorted(core)[:limit])
+        keep |= set(sorted(near - keep)[:max(0, limit - len(keep))])
+        if whole and len(keep) < limit:
+            degree: dict[str, int] = {}
+            for e in edges:
+                degree[e["src"]] = degree.get(e["src"], 0) + 1
+                degree[e["dst"]] = degree.get(e["dst"], 0) + 1
+            rest = sorted(set(defs) - keep, key=lambda n: (-degree.get(n, 0), n))
+            keep |= set(rest[:limit - len(keep)])
         edges = [e for e in edges if e["src"] in keep and e["dst"] in keep]
 
     nodes = []
@@ -117,8 +132,8 @@ def code_map(before: Snapshot, after: Snapshot, report: dict) -> dict:
         hit = affected.get(name)
         nodes.append({
             "id": name,
-            "label": name[len(mod) + 1:] if name.startswith(mod + ".") else name,
-            "path": d.path, "line": d.line, "kind": d.kind,
+            "label": d.label or (name[len(mod) + 1:] if name.startswith(mod + ".") else name),
+            "path": d.path, "line": d.line, "kind": d.kind, "lang": d.lang or "python",
             "change": changed.get(name, ""),
             "removed": removed,
             "score": hit["score"] if hit else 0,

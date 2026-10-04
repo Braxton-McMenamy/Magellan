@@ -10,6 +10,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from magellan_lite.languages import is_source
 from magellan_lite.source import Snapshot, decode, is_skipped_dir
 
 
@@ -38,7 +39,7 @@ def is_repo(root: str | Path) -> bool:
 
 
 def snapshot_at(root: str | Path, rev: str = "HEAD") -> Snapshot:
-    """The ``.py`` files under ``root`` as they were at ``rev``."""
+    """The source files under ``root`` (Python and languages.py's) as they were at ``rev``."""
     root = Path(root).resolve()
     top = Path(decode(_run(root, "rev-parse", "--show-toplevel")).strip()).resolve()
     prefix = root.relative_to(top).as_posix()
@@ -48,7 +49,7 @@ def snapshot_at(root: str | Path, rev: str = "HEAD") -> Snapshot:
     except GitError as exc:
         raise GitError(f"cannot read revision {rev!r}: {exc}") from None
     names = [n for n in listing.splitlines()
-             if n.endswith(".py") and n.startswith(prefix)
+             if is_source(n) and n.startswith(prefix)
              and not any(is_skipped_dir(part) for part in n[len(prefix):].split("/")[:-1])]
     return Snapshot(_read_blobs(top, rev, names, prefix), label=f"git {rev}")
 

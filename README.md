@@ -75,6 +75,27 @@ screen. In VS Code, turn on **Magellan Lite: Share On Save** and your work is sh
 save (at most every 15 seconds), so the suite follows along. A public repository's shared work
 is public: the extension says so when you turn it on.
 
+## Other languages, and old code
+
+Lite reads Python 3 itself, and everything else through the full Magellan's frontends,
+vendored in `magellan_lite/polyglot/` (26k lines, standard library only) and run by
+`magellan_lite/languages.py`:
+
+| Language | Reads | Catches in a change |
+|---|---|---|
+| C | `.c`, `.h` | call sites a new prototype breaks, deleted functions still called, `goto fail`, struct layout and enum value shifts |
+| Java | `.java` | an overload whose parameters changed under its callers, unhandled new enum members |
+| Fortran (66 to 2023) | `.f`, `.f90`, ... | `CALL`s an argument list no longer fits (implicit interfaces too), `COMMON` blocks that no longer line up, `INTENT(OUT)` read first |
+| COBOL | `.cbl`, `.cpy`, ... | copybook layouts that moved, `CALL ... USING` mismatches, truncating `MOVE`s, `PERFORM ... THRU` ranges |
+| C++ | `.cpp`, `.hpp`, ... | the same as C, when libclang is installed (`pip install libclang`) |
+| TypeScript/JavaScript | `.ts`, `.js`, ... | when Node.js and the `typescript` package are installed |
+| Python 2 | `.py` | read through a line-for-line rewrite, so code waiting for its upgrade is on the map |
+
+Every language joins the same map, so the blast radius crosses them: a C function behind a
+Java `native` method reaches its Java callers. Their rules are on the checklist
+(`magellan-lite rules`) and count toward the verdict. The website's engine is Python only for
+now (`TODO(site)` in `demo/build_site.py`).
+
 ## Writing a rule
 
 ```python
@@ -125,6 +146,8 @@ magellan_lite/
   combine.py    two people's work checked together (no git: the browser runs it too)
   team.py       magellan-lite share / team: the git side
   security.py   the website's security headers, for the server and for Cloudflare Pages
+  languages.py  C, C++, Java, Fortran, COBOL, TypeScript, Python 2: their frontends, in Lite's map
+  polyglot/     those frontends, vendored from the full Magellan (fix them there first)
   server.py     magellan-lite serve: the website and its API
   cli.py        the command line
   rules/        the checklist, one file per rule
