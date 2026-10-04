@@ -17,7 +17,7 @@
     {
       "value": 8.5,
       "suffix": "M",
-      "label": "Windows machines crashed (Microsoft's count)"
+      "label": "Windows devices affected (Microsoft's estimate)"
     },
     {
       "value": 5.4,
@@ -26,7 +26,7 @@
       "label": "estimated direct losses for US Fortune 500 companies alone (Parametrix)"
     }
   ],
-  "damage_of": "CrowdStrike, July 19 2024, the real failure of this kind: the sensor's template type defined 21 input fields, but the code that called it supplied 20. An update that used the 21st made the sensor read past its input, and Windows crashed at boot.",
+  "damage_of": "CrowdStrike, July 19 2024, the real failure of this kind: the sensor's IPC template type defined 21 input fields, but the code that called it supplied only 20. A content update that used the 21st made the sensor read past the end of its input, and Windows crashed.",
   "catch": {
     "rule": "signature-break",
     "path": "sensor/collector.py",

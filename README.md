@@ -61,7 +61,7 @@ Each says what to build and how you know it's done.
 |---|---|---|
 | `TODO(starter)` | new to Python's `ast` | Four small rules with numbered steps and a test waiting for each (`bare_except` → `assert_tuple` → `compare_none` → `debug_leftover`). Delete the test's `@unittest.skip` line when you're done. |
 | `TODO(qol)` | comfortable | The PR comment bot (most visible), `--format markdown`, `hook install`, settings from `pyproject.toml`, `# magellan: ignore[rule]`, colours. |
-| `TODO(checklist)` | comfortable | The famous-failure rules: `leap-day-date` (start here), `reused-value`, `loop-without-progress`, `regex-catastrophic-backtracking`. Each turns an incident in `python demo/run.py` from *waiting* to *caught*; then run `python demo/build_site.py` so the website shows it. |
+| `TODO(checklist)` | comfortable | Done: the five famous-failure rules (`leap-day-date`, `reused-value`, `loop-without-progress`, `regex-catastrophic-backtracking`, `unsynchronized-shared-state`); every incident is caught. Next: make them see more (a regex kept in a constant is the easiest; see `magellan_lite/rules/__init__.py`). After any rule change, `python demo/run.py` must stay all caught; then run `python demo/build_site.py`. |
 | engine | Brayton | Done: the blast radius (call graph and propagation), renames, the "reaches" section, `signature-break` and `removed-still-referenced`. The sensor incident is caught. |
 | `TODO(site)` | Braxton | The website. Done: the live hero, the famous-failure player, the checklist, Try it. Next: a share link for Try it (`site/js/tryit.js`), opening the player on one incident (`site/js/story.js`). |
 
@@ -106,7 +106,9 @@ What's on it, all drawn from the real engine:
   map lighting up hop by hop as the change reaches its callers, the issue, and whether Magellan
   Lite catches it today or the rule is still in progress.
 - **The checklist**: every rule, and the ones still being written.
-- **Try it**: edit a before and an after version and check the change for real. On the public
+- **Try it**: three small projects, each with one line marked "change this here". Make the
+  change (or press *Do it for me*) and the verdict, checklist and map update as you type:
+  *block*, *review* and *ok* respectively. On the public
   site the engine runs *in the visitor's browser*: `site/data/engine.js` is Magellan Lite's
   own source, run by [Pyodide](https://pyodide.org) (Python compiled to WebAssembly, loaded
   from a CDN), so nothing is uploaded. Under `magellan-lite serve` it uses the local API

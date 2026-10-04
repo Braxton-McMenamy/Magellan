@@ -8,7 +8,7 @@ site/ is published exactly as it is (the host runs no build step), so everything
 shows is generated here, by the real engine:
 
     site/data/incidents.js   the famous failures, replayed: the story player and the scoreboard
-    site/data/showcase.js    the hero's terminal output, the checklist, the "Try it" examples
+    site/data/showcase.js    the hero's terminal output, the checklist, the three "Try it" examples
     site/data/engine.js      Magellan Lite's own source, which "Try it" runs in the browser
 """
 
@@ -116,114 +116,72 @@ def _lines(*lines: str) -> str:
     return "\n".join(lines) + "\n"
 
 
-#: "Try it" examples. Each is checked here: if the engine stops saying `verdict` and finding
-#: exactly `rules`, the build fails, so the website never shows an example that doesn't work.
-PRESETS = [
-    {"id": "signature", "title": "Add a parameter, miss a caller", "open": "shop/prices.py",
-     "blurb": "price_with_tax() gains a required state. cart.py, which nobody touched, still "
-              "calls it the old way.",
+#: "Try it": three small projects, each with one line to change ("change this here ->").
+#: Checked here: unchanged they must be ok with no changes, and with `find` replaced by
+#: `replace` they must give `verdict` with exactly `rules`. Otherwise the build fails, so the
+#: website never shows an example that doesn't do what it says.
+EXAMPLES = [
+    {"id": "parameter", "title": "Add a parameter", "file": "shop/prices.py",
+     "find": "def price_with_tax(amount):", "replace": "def price_with_tax(amount, state):",
+     "hint": "Taxes now depend on the state. Give price_with_tax a second parameter, state.",
+     "blurb": "cart.py calls price_with_tax, and checkout.py calls cart.py. Nobody will touch "
+              "either of them.",
      "verdict": "block", "rules": ["signature-break"],
-     "before": {
+     "files": {
          "shop/__init__.py": "",
-         "shop/prices.py": _lines("TAX_RATE = 0.08", "", "",
-                                  "def price_with_tax(amount):",
-                                  "    return round(amount * (1 + TAX_RATE), 2)"),
+         "shop/prices.py": _lines("def price_with_tax(amount):",
+                                  "    return round(amount * 1.08, 2)"),
          "shop/cart.py": _lines("from shop.prices import price_with_tax", "", "",
-                                "def total(items):",
-                                "    return sum(price_with_tax(item[\"price\"]) for item in items)"),
+                                "def total(prices):",
+                                "    return sum(price_with_tax(p) for p in prices)"),
          "shop/checkout.py": _lines("from shop.cart import total", "", "",
-                                    "def checkout(items, pay):",
-                                    "    amount = total(items)",
-                                    "    pay(amount)",
-                                    "    return amount")},
-     "after": {
-         "shop/prices.py": _lines("TAX_RATES = {\"TX\": 0.0825, \"CA\": 0.0725, \"OR\": 0.0}",
-                                  "", "",
-                                  "def price_with_tax(amount, state):",
-                                  "    return round(amount * (1 + TAX_RATES[state]), 2)")}},
-    {"id": "removed", "title": "Delete a function that's still used", "open": "app/text.py",
-     "blurb": "legacy_slug() looks unused and is deleted. posts.py still calls it.",
-     "verdict": "block", "rules": ["removed-still-referenced"],
-     "before": {
-         "app/__init__.py": "",
-         "app/text.py": _lines("import re", "", "",
-                               "def slugify(title):",
-                               "    return re.sub(r\"[^a-z0-9]+\", \"-\", title.lower()).strip(\"-\")",
-                               "", "",
-                               "def legacy_slug(title):",
-                               "    return title.lower().replace(\" \", \"_\")"),
-         "app/posts.py": _lines("from app.text import legacy_slug", "", "",
-                                "def post_url(post):",
-                                "    return \"/posts/\" + legacy_slug(post[\"title\"])", "", "",
-                                "def sitemap(posts):",
-                                "    return [post_url(p) for p in posts]")},
-     "after": {
-         "app/text.py": _lines("import re", "", "",
-                               "def slugify(title):",
-                               "    return re.sub(r\"[^a-z0-9]+\", \"-\", title.lower()).strip(\"-\")")}},
-    {"id": "default", "title": "A shared default list", "open": "tags.py",
-     "blurb": "A tidy-up replaces `tags=None` with `tags=[]`. Every call now shares one list.",
+                                    "def checkout(prices):",
+                                    "    return f\"You pay ${total(prices)}\"")}},
+    {"id": "default", "title": "Simplify a default", "file": "tags.py",
+     "find": "def add_tag(tag, tags=None):", "replace": "def add_tag(tag, tags=[]):",
+     "hint": "Looks simpler: make the default an empty list, tags=[].",
+     "blurb": "A default is built once, when the function is defined, not on every call.",
      "verdict": "review", "rules": ["mutable-default-argument"],
-     "before": {"tags.py": _lines("def add_tag(tag, tags=None):",
-                                  "    if tags is None:",
-                                  "        tags = []",
-                                  "    tags.append(tag)",
-                                  "    return tags")},
-     "after": {"tags.py": _lines("def add_tag(tag, tags=[]):",
-                                 "    tags.append(tag)",
-                                 "    return tags")}},
-    {"id": "leftovers", "title": "A quick fix, debugging left in", "open": "settings.py",
-     "blurb": "The team's starter rules: a bare except, a print, == None, an assert that "
-              "always passes.",
-     "verdict": "review",
-     "rules": ["assert-on-tuple", "bare-except", "compare-to-none", "debug-leftover"],
-     "before": {"settings.py": _lines("import json", "", "",
-                                      "def load_settings(path):",
-                                      "    with open(path) as f:",
-                                      "        return json.load(f)")},
-     "after": {"settings.py": _lines("import json", "", "",
-                                     "def load_settings(path):",
-                                     "    try:",
-                                     "        with open(path) as f:",
-                                     "            settings = json.load(f)",
-                                     "    except:",
-                                     "        settings = {}",
-                                     "    print(\"settings:\", settings)",
-                                     "    if settings.get(\"theme\") == None:",
-                                     "        settings[\"theme\"] = \"dark\"",
-                                     "    assert (settings[\"theme\"] in (\"dark\", \"light\"), "
-                                     "\"unknown theme\")",
-                                     "    return settings")}},
-    {"id": "reformat", "title": "Only reformatting", "open": "greet.py",
-     "blurb": "Spacing, quotes, a comment and a docstring. The syntax tree is the same, so "
-              "nothing changed.",
+     "files": {
+         "tags.py": _lines("def add_tag(tag, tags=None):",
+                           "    if tags is None:",
+                           "        tags = []",
+                           "    tags.append(tag)",
+                           "    return tags"),
+         "posts.py": _lines("from tags import add_tag", "", "",
+                            "def tag_post(post, tag):",
+                            "    post[\"tags\"] = add_tag(tag)",
+                            "    return post")}},
+    {"id": "format", "title": "Tidy the formatting", "file": "greet.py",
+     "find": "    message=greeting+', '+name+'!'",
+     "replace": "    message = greeting + \", \" + name + \"!\"",
+     "hint": "Tidy this line: spaces around the operators, double quotes.",
+     "blurb": "Magellan Lite compares syntax trees, not text, so formatting is never a change.",
      "verdict": "ok", "rules": [],
-     "before": {"greet.py": _lines("def greet(name,greeting='Hello'):",
-                                   "    message=greeting+', '+name+'!'",
-                                   "    return message")},
-     "after": {"greet.py": _lines("def greet(name, greeting=\"Hello\"):",
-                                  "    \"\"\"Say hello.\"\"\"",
-                                  "    message = greeting + \", \" + name + \"!\"  # tidied",
-                                  "    return message")}},
-    {"id": "blank", "title": "Your own code", "open": "app.py",
-     "blurb": "Paste the old version on the left and the new one on the right.",
-     "verdict": "ok", "rules": [],
-     "before": {"app.py": _lines("def add(a, b):", "    return a + b")},
-     "after": {}},
+     "files": {
+         "greet.py": _lines("def greet(name, greeting='Hello'):",
+                            "    message=greeting+', '+name+'!'",
+                            "    return message")}},
 ]
 
 
-def presets() -> list[dict]:
+def examples() -> list[dict]:
     out = []
-    for p in PRESETS:
-        after = {**p["before"], **p["after"]}
-        report = check_with_map(p["before"], after)
-        got = (report["verdict"], sorted({f["rule"] for f in report["findings"]}))
-        if got != (p["verdict"], sorted(p["rules"])):
-            raise SystemExit(f"build_site: the {p['id']!r} example now gives {got}, "
-                             f"not {(p['verdict'], sorted(p['rules']))}: update PRESETS")
-        out.append({k: p[k] for k in ("id", "title", "blurb", "open")}
-                   | {"before": p["before"], "after": after})
+    for e in EXAMPLES:
+        files, path = e["files"], e["file"]
+        if files[path].count(e["find"]) != 1:
+            raise SystemExit(f"build_site: {e['id']!r}: `find` must occur once in {path}")
+        changed = {**files, path: files[path].replace(e["find"], e["replace"])}
+        for after, want in ((files, ("ok", [], 0)), (changed, (e["verdict"], sorted(e["rules"])))):
+            report = check_with_map(files, after)
+            got = (report["verdict"], sorted({f["rule"] for f in report["findings"]}))
+            if after is files:
+                got += (len(report["changes"]),)
+            if got != want:
+                raise SystemExit(f"build_site: the {e['id']!r} example gives {got}, not {want}"
+                                 f"{' unchanged' if after is files else ' once changed'}")
+        out.append({k: e[k] for k in ("id", "title", "file", "find", "replace", "hint", "blurb",
+                                      "verdict", "files")})
     return out
 
 
@@ -252,7 +210,7 @@ def build() -> dict[Path, str]:
                                    "the famous failures, replayed from demo/incidents/"),
         DATA / "showcase.js": _js("MAGELLAN_SHOWCASE",
                                   {"version": __version__, "hero": hero(), "rules": rules(),
-                                   "presets": presets()},
+                                   "examples": examples()},
                                   "the hero, the checklist and the Try-it examples"),
         DATA / "engine.js": _js("MAGELLAN_ENGINE", engine(),
                                 "Magellan Lite's source, run in the browser by Try it", None),

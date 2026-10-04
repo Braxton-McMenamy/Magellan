@@ -115,7 +115,10 @@ window.MagellanMap = (() => {
     const xs = raw.map((p) => p.x), ys = raw.map((p) => p.y);
     const bw = Math.max(Math.max(...xs) - Math.min(...xs), 1);
     const bh = Math.max(Math.max(...ys) - Math.min(...ys), 1);
-    const s = Math.min(nodes.length <= 6 ? 3 : 1.5, (W - 2 * padX) / bw, (Math.min(460, W * 0.75) - 2 * padY) / bh);
+    // a handful of definitions stays compact instead of stretching across the whole box
+    const span = nodes.length <= 3 ? 190 : nodes.length <= 6 ? 300 : Infinity;
+    const s = Math.min(nodes.length <= 6 ? 3 : 1.5, span / Math.max(bw, bh),
+      (W - 2 * padX) / bw, (Math.min(460, W * 0.75) - 2 * padY) / bh);
     const H = Math.max(200, bh * s + 2 * padY);
     const ox = (W - bw * s) / 2 - Math.min(...xs) * s, oy = (H - bh * s) / 2 - Math.min(...ys) * s;
     const pos = raw.map((p) => ({ x: p.x * s + ox, y: p.y * s + oy }));

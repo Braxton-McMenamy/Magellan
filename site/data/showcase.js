@@ -36,11 +36,32 @@ window.MAGELLAN_SHOWCASE = {
    "fix": "Remove it before committing (use logging for output)."
   },
   {
+   "id": "leap-day-date",
+   "severity": "high",
+   "blocking": true,
+   "kind": "file",
+   "fix": "Add a timedelta instead (days=365), or handle February 29 yourself (fall back to February 28)."
+  },
+  {
+   "id": "loop-without-progress",
+   "severity": "high",
+   "blocking": true,
+   "kind": "file",
+   "fix": "Make every way through the loop change what its condition reads, or leave the loop (break, return or raise) where it cannot."
+  },
+  {
    "id": "mutable-default-argument",
    "severity": "medium",
    "blocking": false,
    "kind": "file",
    "fix": "Default to None and build the container inside the function."
+  },
+  {
+   "id": "regex-catastrophic-backtracking",
+   "severity": "high",
+   "blocking": false,
+   "kind": "file",
+   "fix": "Remove the overlap: drop redundant `.*`s, make the parts match different characters, or bound them ({0,100}); then time the pattern on a long input that does not match."
   },
   {
    "id": "removed-still-referenced",
@@ -50,94 +71,69 @@ window.MAGELLAN_SHOWCASE = {
    "fix": "Restore it, or update the code that still uses it in the same change."
   },
   {
+   "id": "reused-value",
+   "severity": "high",
+   "blocking": false,
+   "kind": "change",
+   "fix": "Give the new meaning a value of its own, and retire the old one: reject it (or log it and refuse), so whatever still sends it fails loudly instead of running the new code."
+  },
+  {
    "id": "signature-break",
    "severity": "critical",
    "blocking": true,
    "kind": "change",
    "fix": "Update the call, or give the new parameter a default so existing calls keep working."
-  }
- ],
- "presets": [
-  {
-   "id": "signature",
-   "title": "Add a parameter, miss a caller",
-   "blurb": "price_with_tax() gains a required state. cart.py, which nobody touched, still calls it the old way.",
-   "open": "shop/prices.py",
-   "before": {
-    "shop/__init__.py": "",
-    "shop/prices.py": "TAX_RATE = 0.08\n\n\ndef price_with_tax(amount):\n    return round(amount * (1 + TAX_RATE), 2)\n",
-    "shop/cart.py": "from shop.prices import price_with_tax\n\n\ndef total(items):\n    return sum(price_with_tax(item[\"price\"]) for item in items)\n",
-    "shop/checkout.py": "from shop.cart import total\n\n\ndef checkout(items, pay):\n    amount = total(items)\n    pay(amount)\n    return amount\n"
-   },
-   "after": {
-    "shop/__init__.py": "",
-    "shop/prices.py": "TAX_RATES = {\"TX\": 0.0825, \"CA\": 0.0725, \"OR\": 0.0}\n\n\ndef price_with_tax(amount, state):\n    return round(amount * (1 + TAX_RATES[state]), 2)\n",
-    "shop/cart.py": "from shop.prices import price_with_tax\n\n\ndef total(items):\n    return sum(price_with_tax(item[\"price\"]) for item in items)\n",
-    "shop/checkout.py": "from shop.cart import total\n\n\ndef checkout(items, pay):\n    amount = total(items)\n    pay(amount)\n    return amount\n"
-   }
   },
   {
-   "id": "removed",
-   "title": "Delete a function that's still used",
-   "blurb": "legacy_slug() looks unused and is deleted. posts.py still calls it.",
-   "open": "app/text.py",
-   "before": {
-    "app/__init__.py": "",
-    "app/text.py": "import re\n\n\ndef slugify(title):\n    return re.sub(r\"[^a-z0-9]+\", \"-\", title.lower()).strip(\"-\")\n\n\ndef legacy_slug(title):\n    return title.lower().replace(\" \", \"_\")\n",
-    "app/posts.py": "from app.text import legacy_slug\n\n\ndef post_url(post):\n    return \"/posts/\" + legacy_slug(post[\"title\"])\n\n\ndef sitemap(posts):\n    return [post_url(p) for p in posts]\n"
-   },
-   "after": {
-    "app/__init__.py": "",
-    "app/text.py": "import re\n\n\ndef slugify(title):\n    return re.sub(r\"[^a-z0-9]+\", \"-\", title.lower()).strip(\"-\")\n",
-    "app/posts.py": "from app.text import legacy_slug\n\n\ndef post_url(post):\n    return \"/posts/\" + legacy_slug(post[\"title\"])\n\n\ndef sitemap(posts):\n    return [post_url(p) for p in posts]\n"
+   "id": "unsynchronized-shared-state",
+   "severity": "high",
+   "blocking": false,
+   "kind": "file",
+   "fix": "Hold one lock around every read and write of the shared fields (`with self.lock:` in both methods), so one thread never sees half an update."
+  }
+ ],
+ "examples": [
+  {
+   "id": "parameter",
+   "title": "Add a parameter",
+   "file": "shop/prices.py",
+   "find": "def price_with_tax(amount):",
+   "replace": "def price_with_tax(amount, state):",
+   "hint": "Taxes now depend on the state. Give price_with_tax a second parameter, state.",
+   "blurb": "cart.py calls price_with_tax, and checkout.py calls cart.py. Nobody will touch either of them.",
+   "verdict": "block",
+   "files": {
+    "shop/__init__.py": "",
+    "shop/prices.py": "def price_with_tax(amount):\n    return round(amount * 1.08, 2)\n",
+    "shop/cart.py": "from shop.prices import price_with_tax\n\n\ndef total(prices):\n    return sum(price_with_tax(p) for p in prices)\n",
+    "shop/checkout.py": "from shop.cart import total\n\n\ndef checkout(prices):\n    return f\"You pay ${total(prices)}\"\n"
    }
   },
   {
    "id": "default",
-   "title": "A shared default list",
-   "blurb": "A tidy-up replaces `tags=None` with `tags=[]`. Every call now shares one list.",
-   "open": "tags.py",
-   "before": {
-    "tags.py": "def add_tag(tag, tags=None):\n    if tags is None:\n        tags = []\n    tags.append(tag)\n    return tags\n"
-   },
-   "after": {
-    "tags.py": "def add_tag(tag, tags=[]):\n    tags.append(tag)\n    return tags\n"
+   "title": "Simplify a default",
+   "file": "tags.py",
+   "find": "def add_tag(tag, tags=None):",
+   "replace": "def add_tag(tag, tags=[]):",
+   "hint": "Looks simpler: make the default an empty list, tags=[].",
+   "blurb": "A default is built once, when the function is defined, not on every call.",
+   "verdict": "review",
+   "files": {
+    "tags.py": "def add_tag(tag, tags=None):\n    if tags is None:\n        tags = []\n    tags.append(tag)\n    return tags\n",
+    "posts.py": "from tags import add_tag\n\n\ndef tag_post(post, tag):\n    post[\"tags\"] = add_tag(tag)\n    return post\n"
    }
   },
   {
-   "id": "leftovers",
-   "title": "A quick fix, debugging left in",
-   "blurb": "The team's starter rules: a bare except, a print, == None, an assert that always passes.",
-   "open": "settings.py",
-   "before": {
-    "settings.py": "import json\n\n\ndef load_settings(path):\n    with open(path) as f:\n        return json.load(f)\n"
-   },
-   "after": {
-    "settings.py": "import json\n\n\ndef load_settings(path):\n    try:\n        with open(path) as f:\n            settings = json.load(f)\n    except:\n        settings = {}\n    print(\"settings:\", settings)\n    if settings.get(\"theme\") == None:\n        settings[\"theme\"] = \"dark\"\n    assert (settings[\"theme\"] in (\"dark\", \"light\"), \"unknown theme\")\n    return settings\n"
-   }
-  },
-  {
-   "id": "reformat",
-   "title": "Only reformatting",
-   "blurb": "Spacing, quotes, a comment and a docstring. The syntax tree is the same, so nothing changed.",
-   "open": "greet.py",
-   "before": {
-    "greet.py": "def greet(name,greeting='Hello'):\n    message=greeting+', '+name+'!'\n    return message\n"
-   },
-   "after": {
-    "greet.py": "def greet(name, greeting=\"Hello\"):\n    \"\"\"Say hello.\"\"\"\n    message = greeting + \", \" + name + \"!\"  # tidied\n    return message\n"
-   }
-  },
-  {
-   "id": "blank",
-   "title": "Your own code",
-   "blurb": "Paste the old version on the left and the new one on the right.",
-   "open": "app.py",
-   "before": {
-    "app.py": "def add(a, b):\n    return a + b\n"
-   },
-   "after": {
-    "app.py": "def add(a, b):\n    return a + b\n"
+   "id": "format",
+   "title": "Tidy the formatting",
+   "file": "greet.py",
+   "find": "    message=greeting+', '+name+'!'",
+   "replace": "    message = greeting + \", \" + name + \"!\"",
+   "hint": "Tidy this line: spaces around the operators, double quotes.",
+   "blurb": "Magellan Lite compares syntax trees, not text, so formatting is never a change.",
+   "verdict": "ok",
+   "files": {
+    "greet.py": "def greet(name, greeting='Hello'):\n    message=greeting+', '+name+'!'\n    return message\n"
    }
   }
  ]

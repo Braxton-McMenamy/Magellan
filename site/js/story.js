@@ -164,12 +164,20 @@
     const p = problem(inc);
     const first = (inc.damage || [])[0];
     const cost = first ? (first.text || `${first.prefix || ""}${first.value}${first.suffix || ""}`) : "";
+    const where = p.path ? `<code>${esc(p.path)}:${p.line}</code>` : "the problem";
+    const alone = `It finds it from the code alone, before anything runs${
+      inc.story.files.some((f) => f.state === "untouched") ? ", in a file the change never touched" : ""}.`;
     const head = {
-      caught: `<div class="stamp block">${esc(inc.story.verdict)}</div>
-        <h3>Magellan Lite stops this commit.</h3>
-        <p>As a pre-commit check, <code>magellan-lite check</code> refuses the change until
-          ${p.path ? `<code>${esc(p.path)}:${p.line}</code>` : "the problem"} is fixed. It finds it
-          from the code alone, before anything runs${inc.story.files.some((f) => f.state === "untouched") ? ", in a file the change never touched" : ""}.</p>`,
+      caught: inc.story.verdict === "block"
+        ? `<div class="stamp block">block</div>
+          <h3>Magellan Lite stops this commit.</h3>
+          <p>As a pre-commit check, <code>magellan-lite check</code> refuses the change until
+            ${where} is fixed. ${alone}</p>`
+        : `<div class="stamp review">review</div>
+          <h3>Magellan Lite flags this change before it ships.</h3>
+          <p>The checklist puts ${where} in front of a reviewer, high severity; run the check
+            with <code>--fail-on review</code> and the commit is refused until it is fixed.
+            ${alone}</p>`,
       waiting: `<div class="stamp waiting">rule in progress</div>
         <h3>The rule that catches this is being written: <code>${esc(p.rule)}</code></h3>
         <p>When it lands, Magellan Lite flags this change before it is committed. Today it

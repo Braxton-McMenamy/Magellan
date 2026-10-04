@@ -17,28 +17,22 @@ from magellan_lite.rules import assert_tuple, bare_except, compare_none, debug_l
 #   bare_except.py -> assert_tuple.py -> compare_none.py -> debug_leftover.py
 #   Each one says exactly what to do, and its test tells you when you're done.
 
-# TODO(checklist): the rules that catch famous failures. Each one turns an incident in
-#   demo/incidents/ green: `python demo/run.py` shows which are still waiting.
-#
-#   1. leap-day-date (high, blocking): `date(d.year + 1, d.month, d.day)` and
-#      `d.replace(year=d.year + 1)` raise ValueError on February 29. Quiet when the offset is
-#      a multiple of 4, inside `try/except ValueError`, or when the function checks `== 29`.
-#      Turns azure-leap-day-2012 green. The easiest of these four: start here.
-#   2. reused-value (high): a @change_rule. A constant deleted (or given a new value) while a
-#      new constant in the same module takes its old value, and a function that read the old
-#      one now reads the new one AND calls different things. A plain rename calls the same
-#      things: stay quiet. Turns knight-capital-2012 step 3 green.
-#   3. loop-without-progress (high, blocking): a `while` loop whose body never changes what
-#      its condition reads, never passes it to a call, and never breaks/returns/raises.
-#      Skip `while True` and conditions that call things (polling). Turns knight-capital-2012
-#      step 2 green; the path-by-path version (Zune, `days == 366`) is the stretch goal.
-#   4. regex-catastrophic-backtracking (high): a changed regex literal with nested
-#      quantifiers like `(a+)+` or three overlapping unbounded parts like `.*(?:.*=.*)`.
-#      Parse with `re._parser` (3.11+) / `sre_parse` (3.10), never run the regex.
-#      Turns cloudflare-waf-2019 green.
-#   Stretch: unsynchronized-shared-state (therac-25-1986) needs thread analysis: last.
-#   When one lands, run `python demo/build_site.py` and commit site/data/: the website's
-#   story for that incident turns from "rule in progress" to caught (the tests remind you).
-#
-#   The full Magellan has tested versions of 1-4 (magellan/python/rules/, magellan/rules/):
-#   read them for the edge cases, then write your own small version here.
+# The famous failures, one rule each (demo/incidents/ replays them: `python demo/run.py`).
+from magellan_lite.rules import dates  # noqa: F401      leap-day-date: Azure, 2012
+from magellan_lite.rules import reuse  # noqa: F401      reused-value: Knight Capital, 2012
+from magellan_lite.rules import loops  # noqa: F401      loop-without-progress: Knight, Zune
+from magellan_lite.rules import regexes  # noqa: F401    regex-catastrophic-backtracking: Cloudflare
+from magellan_lite.rules import threads  # noqa: F401    unsynchronized-shared-state: Therac-25
+
+# TODO(checklist): make the famous-failure rules see more. Each has a test file in
+#   tests/rules/ to add your case to; `python demo/run.py` must stay all caught, and after
+#   any rule change run `python demo/build_site.py` (the website shows the rules' results).
+#   1. regexes.py: a pattern kept in a constant, `WORD = r"(a+)+"` then `re.compile(WORD)`.
+#      Look the name up among the module's assignments. (The easiest one: start here.)
+#   2. dates.py: `date(year=d.year + 1, month=d.month, day=d.day)` written with keywords is
+#      caught; `datetime.combine(...)` and `d + relativedelta(years=1)` are fine. Add a test
+#      that `arrow`/`pendulum`-style `.shift(years=1)` stays quiet.
+#   3. threads.py: a method started twice as two threads (`for _ in range(4): Thread(
+#      target=self.work)`) races with itself. Report it when it writes a field unlocked.
+#   4. loops.py: `while i < len(items):` calls len(), so it is skipped as polling today.
+#      Treat len() of something the body does not change as a plain value.

@@ -6,6 +6,7 @@ Thumbs.db
 
 # web
 node_modules/
+.wrangler/
 
 # Python
 __pycache__/
