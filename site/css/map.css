@@ -70,3 +70,46 @@
 @media (prefers-reduced-motion: reduce) {
   .map .edge.impact.lit, .map .node.finding.lit .halo, .map .node.changed.lit .halo { animation: none; }
 }
+
+/* The 3D view (js/graph3d.js through js/scene3d.js): a dark stage wherever it is drawn. */
+.scene3d { position: relative; border-radius: 12px; overflow: hidden; background: #0b131e; }
+.scene3d-canvas { display: block; width: 100%; height: var(--scene3d-h, 520px); cursor: grab; outline: none; }
+.scene3d-canvas:focus-visible { box-shadow: inset 0 0 0 2px #f2a93b; }
+.scene3d-bar {
+  position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;
+}
+.scene3d-btn, .scene3d-select {
+  font: 600 12px var(--font, system-ui, sans-serif); color: #dce4ee; cursor: pointer;
+  background: rgba(20, 32, 48, .82); border: 1px solid #2a3b52; border-radius: 999px; padding: 4px 11px;
+  backdrop-filter: blur(6px);
+}
+.scene3d-select { padding-right: 6px; }
+.scene3d-btn:hover, .scene3d-select:hover { border-color: #f2a93b; }
+.scene3d-btn:focus-visible, .scene3d-select:focus-visible { outline: 2px solid #f2a93b; outline-offset: 1px; }
+.scene3d-btn[aria-pressed="true"] { background: #f2a93b; color: #111; border-color: #f2a93b; }
+.scene3d-legend {
+  position: absolute; left: 10px; bottom: 30px; display: flex; flex-direction: column; gap: 3px;
+  font: 12px var(--font, system-ui, sans-serif); color: #c4cfdc; pointer-events: none;
+  background: rgba(11, 19, 30, .7); padding: 7px 10px; border-radius: 8px;
+}
+.scene3d-key i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 7px; vertical-align: -1px; background: var(--c); }
+.scene3d-key.ring i { background: transparent; border: 2px solid #ff3b30; width: 8px; height: 8px; }
+.scene3d-hint {
+  position: absolute; right: 12px; bottom: 6px; margin: 0; font: 11px var(--font, system-ui, sans-serif);
+  color: #7d8b9c; pointer-events: none;
+}
+.view-switch { display: inline-flex; border: 1px solid var(--border, #2a3b52); border-radius: 999px; overflow: hidden; }
+.view-switch button {
+  font: 600 12px var(--font, system-ui, sans-serif); padding: 4px 13px; border: 0; cursor: pointer;
+  background: transparent; color: var(--muted, #93a1b1);
+}
+.view-switch button[aria-pressed="true"] { background: #f2a93b; color: #111; }
+.view-switch button:focus-visible { outline: 2px solid #f2a93b; outline-offset: -2px; }
+@media (max-width: 600px) {
+  .scene3d-canvas { height: var(--scene3d-h-narrow, 420px); }
+  .scene3d-hint { display: none; }
+  .scene3d-legend { bottom: 8px; }
+}
+.scene3d-skull[aria-pressed="true"] { background: #c9b6ff; border-color: #c9b6ff; color: #111; }
+.scene3d-btn[disabled] { opacity: .45; cursor: default; }
+.scene3d-key.note { color: #7d8b9c; font-size: 11px; max-width: 260px; }

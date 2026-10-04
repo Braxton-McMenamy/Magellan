@@ -1,65 +1,307 @@
 // The map panel: the last check's verdict, the map of the change and what it reaches, and the
 // checklist. The map is drawn by the website's renderer (map.js), so it looks the same here,
 // on the website's incident stories, and on the account pages to come.
+//
+// What the extension sends: { type: "report", report, repo } after each check, and
+// { type: "repo", repo } when it finds the project's GitHub repository ("owner/name" or null).
+// What the page sends: { type: "ready" } once it has loaded, { type: "open", path, line } to
+// open a file at a line, and { type: "run", command } from its buttons.
+//
+// Report text comes from the user's code, so it goes into the page as text (textContent and
+// DOM nodes, through `h` below), never as HTML.
 
 (() => {
   const api = acquireVsCodeApi();
   const $ = (s) => document.querySelector(s);
-  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  const short = (name) => String(name ?? "").split(".").slice(-2).join(".");   // module.function
 
-  // TODO(braxton): the 3D and 2D views from the original Magellan, switchable here (and later
-  //   on the website's personal and team pages, which use the same renderers).
-  //   1. Copy magellan/interfaces/ui/graph3d.js (3D) and graph.js (2D) from the original
-  //      Magellan repo into site/js/: the website holds the originals. Add both to
-  //      editors/vscode/shared.json, add their names to SCRIPTS in editors/vscode/panel.js, and
-  //      run `node editors/vscode/sync.js` to copy them here.
-  //   2. They take `{ nodes, edges, center }`. A Magellan Lite map (report.map) is
-  //      `{ nodes, edges }` with the same `id`, `path` and `kind` on nodes and `src`, `dst`,
-  //      `kind` on edges. Set `center` to the id of the first node with a `change`, and give
-  //      each node `impact: node.score` so what the change reaches glows.
-  //   3. Above #graph, add a "Map · 2D · 3D" switch that swaps which view draws into #graph
-  //      (the Map view is the MagellanMap.render call below).
-  //   4. In the top README.md, under a "Code from before the event" heading, name the files you
-  //      copied and say they come from Magellan, written before the hackathon.
-  //   Done when the panel shows the CrowdStrike-class change in 3D and switches back.
-  function drawMap(report) {
-    const box = $("#graph");
-    const map = report.map || MagellanMap.fromReport(report);
-    MagellanMap.render(box, map).play();
+  // an element with attributes and children: strings become text nodes, never HTML
+  function h(tag, attrs = {}, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === undefined || v === null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "onclick") el.addEventListener("click", v);
+      else el.setAttribute(k, String(v));
+    }
+    for (const kid of kids.flat()) {
+      if (kid !== undefined && kid !== null && kid !== false && kid !== "") el.append(kid);
+    }
+    return el;
+  }
+  // replace an element's children, skipping the empty ones (as h does)
+  const fill = (el, ...kids) => el.replaceChildren(
+    ...kids.flat().filter((k) => k !== undefined && k !== null && k !== false && k !== ""));
+
+  const SEVERITIES = ["critical", "high", "medium", "low"];
+  const KINDS = ["removed", "signature", "renamed", "value", "body", "added"];
+  const WHY = {
+    block: "Don't commit yet: fix what the checklist found first.",
+    review: "Look over what the checklist found before you commit.",
+    ok: "Nothing on the checklist fired for what this change touched.",
+  };
+  const MAX_REACH = 12;
+
+  let current = null;       // the report on screen
+  let lastVerdict = null;   // so the verdict only pops when it changes
+  let lastChanges = null;   // so the map only replays when the change itself is new
+
+  // -- talking to the extension ------------------------------------------------------------
+  const open = (path, line) => {
+    if (path) api.postMessage({ type: "open", path, line: Number(line) || 1 });
+  };
+  const link = (path, line) => h("button", {
+    type: "button", class: "link", title: `Open ${path}:${line}`, onclick: () => open(path, line),
+  }, `${path}:${line}`);
+
+  // the buttons: "Check again", "Team", "Open the Team suite" (data-run says which command)
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-run]");
+    if (!b || b.disabled) return;
+    api.postMessage({ type: "run", command: b.dataset.run });
+    if (b.dataset.run === "magellanLite.check") busy(true);
+  });
+
+  // while a check runs: the check buttons say so and the report dims. The next report ends
+  // it; a check that fails sends none, so it also ends on its own after a while.
+  let busyTimer = 0;
+  function busy(on) {
+    clearTimeout(busyTimer);
+    document.body.classList.toggle("busy", on);
+    for (const b of document.querySelectorAll('[data-run="magellanLite.check"]')) {
+      const t = b.querySelector(".t");
+      b.dataset.idle = b.dataset.idle || t.textContent;
+      t.textContent = on ? "Checking…" : b.dataset.idle;
+      b.disabled = on;
+    }
+    if (on) busyTimer = setTimeout(() => busy(false), 30000);
   }
 
+  function setRepo(slug) {
+    const repo = typeof slug === "string" && slug ? slug : "";
+    $("#repo").textContent = repo;
+    $("#repo").hidden = !repo;
+    $("#suite").hidden = !repo;      // the Team suite reads the repository from GitHub
+  }
+
+  // -- the verdict -------------------------------------------------------------------------
+  function drawVerdict(report, findings, changes, affected) {
+    const verdict = WHY[report.verdict] ? report.verdict : "review";
+    const pop = verdict !== lastVerdict;
+    lastVerdict = verdict;
+    const summary = `${plural(findings.length, "finding")} · ${plural(changes.length, "change")}${
+      affected.length ? ` · reaches ${plural(affected.length, "definition")} nobody edited` : ""}`;
+    const card = $("#verdict");
+    card.className = `verdict-card ${verdict}`;
+    fill(card,
+      h("span", { class: `verdict${pop ? " pop" : ""}` }, verdict),
+      h("div", { class: "verdict-text" },
+        h("p", { class: "summary" }, summary),
+        h("p", { class: "why" }, changes.length ? WHY[verdict] : "No definition changed, so there is nothing to check yet."),
+        h("ul", { class: "chips", "aria-label": "In numbers" }, chips(findings, changes, affected))));
+  }
+
+  // small counts: findings by severity, changes by kind, files touched, how far it reaches
+  function chips(findings, changes, affected) {
+    const chip = (n, label, cls = "") => h("li", { class: `chip ${cls}` },
+      cls && h("i", { class: "dot", "aria-hidden": "true" }), h("b", {}, String(n)), ` ${label}`);
+    const out = [];
+    for (const s of SEVERITIES) {
+      const n = findings.filter((f) => f.severity === s).length;
+      if (n) out.push(chip(n, s, `sev-${s}`));
+    }
+    const kinds = new Map();
+    for (const c of changes) kinds.set(String(c.kind), (kinds.get(String(c.kind)) || 0) + 1);
+    const place = (k) => (KINDS.includes(k) ? KINDS.indexOf(k) : KINDS.length);
+    for (const k of [...kinds.keys()].sort((a, b) => place(a) - place(b))) {
+      out.push(chip(kinds.get(k), k, KINDS.includes(k) ? `kind-${k}` : "kind-other"));
+    }
+    const files = new Set(changes.map((c) => c.path)).size;
+    if (files) out.push(chip(files, files === 1 ? "file" : "files"));
+    const deepest = Math.max(0, ...affected.map((a) => Number(a.hops) || 0));
+    if (deepest) out.push(chip(deepest, deepest === 1 ? "hop deep" : "hops deep"));
+    return out;
+  }
+
+  // -- the map, on its stage ---------------------------------------------------------------
+  function drawLede(changes, affected) {
+    const edited = changes.filter((c) => c.kind !== "added").length || changes.length;
+    fill($("#stage-lede"), affected.length
+      ? [`The change edits ${plural(edited, "definition")}. Its effect spreads to `,
+        h("em", {}, "whatever calls it"),
+        `, then to their callers: ${plural(affected.length, "definition")} nobody edited can break.`]
+      : [changes.length ? "Nothing else in the project calls the code this change edits."
+        : "No definition changed, so there is nothing to follow yet."]);
+  }
+
+  // Two views of the same map, as on the website: Flow (the change, hop by hop: map.js) and 3D
+  // (the whole project as clusters on a sphere: graph3d.js through scene3d.js). The choice is
+  // kept in the webview's state, so it survives the panel being hidden and shown.
+  let mode = (api.getState && api.getState() && api.getState().view) || "flow";
+  let view = null;          // what the view returned: { play, finish } (and destroy, for 3D)
+  let drawnWidth = 0;       // the map's width when it was drawn
+  function drawMap(report, animate) {
+    const box = $("#graph");
+    const map = report.map || MagellanMap.fromReport(report);
+    drawnWidth = box.clientWidth;
+    if (view && view.destroy) view.destroy();
+    $("#replay").hidden = mode === "3d";
+    $("#graph").classList.toggle("is-3d", mode === "3d");
+    $("#views").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === mode)));
+    if (mode === "3d") {
+      // exploring turns and picks; a double-click opens the file
+      view = MagellanScene3D.render(box, map, {
+        label: "The whole project in 3D, coloured by the change",
+        onPick() {},
+        onOpen(node) { open(node.path, node.line); },
+      });
+      return;
+    }
+    view = MagellanMap.render(box, map, {
+      animate,
+      // a click (or Enter) on a definition opens its file at its line
+      onPick(node, g) {
+        box.querySelectorAll(".node.picked").forEach((n) => n.classList.remove("picked"));
+        g.classList.add("picked");
+        open(node.path, node.line);
+      },
+    });
+    if (animate) view.play();
+  }
+  $("#replay").addEventListener("click", () => view && view.play());
+  $("#views").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    if (mode === b.dataset.view) return;
+    mode = b.dataset.view;
+    if (api.setState) api.setState({ ...(api.getState && api.getState()), view: mode });
+    if (current) drawMap(current, mode === "flow");
+  }));
+
+  // the panel was resized (a side panel often is): draw the map again for the new width,
+  // standing still. Small changes, like a scroll bar appearing, just scale the drawing.
+  let resizeTimer = 0;
+  new ResizeObserver(() => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const w = $("#graph").clientWidth;
+      if (mode === "3d") return;                       // the 3D view sizes itself
+      if (current && w && Math.abs(w - drawnWidth) > 24) drawMap(current, false);
+    }, 150);
+  }).observe($("#graph"));
+
+  // -- the checklist -----------------------------------------------------------------------
+  const heading = (text, n) => h("h2", {}, text, h("span", { class: "count" }, String(n)));
+
+  function drawChecklist(findings) {
+    const rank = (f) => (SEVERITIES.indexOf(f.severity) + 1 || 9);
+    const sorted = [...findings].sort((a, b) => rank(a) - rank(b));
+    fill($("#checklist"), heading("Checklist", findings.length), findings.length
+      ? h("ul", { class: "findings" }, sorted.map(finding))
+      : h("p", { class: "quiet" }, "Nothing to check in what this change touched."));
+  }
+
+  // one finding: a card with its severity's colour down the side
+  function finding(f) {
+    const sev = SEVERITIES.includes(f.severity) ? f.severity : "low";
+    return h("li", { class: `issue ${sev}` },
+      h("div", { class: "f-top" },
+        h("span", { class: "sev" }, sev),
+        h("code", { class: "rule" }, f.rule),
+        f.path && link(f.path, f.line)),
+      h("p", { class: "f-msg" }, f.message),
+      f.detail && h("p", { class: "f-detail" }, f.detail),
+      f.fix && h("p", { class: "f-fix" }, h("b", {}, "Fix"), f.fix));
+  }
+
+  // -- what it reaches ---------------------------------------------------------------------
+  function drawReach(affected) {
+    const more = affected.length - MAX_REACH;
+    fill($("#reach"), heading("What it reaches", affected.length), affected.length
+      ? h("ol", { class: "reach" }, affected.slice(0, MAX_REACH).map(reachRow))
+      : h("p", { class: "quiet" }, "Nothing else in the project calls the code this change edits."),
+      more > 0 && h("p", { class: "quiet more" }, `and ${more} more, further away`));
+  }
+
+  // one definition the change reaches: its name and file, a heat bar for its score, its hops
+  function reachRow(a) {
+    const score = Math.max(0, Math.min(1, Number(a.score) || 0));
+    const fill = h("i");
+    fill.style.setProperty("--score", String(score));     // CSSOM, not a style="" attribute
+    return h("li", {}, h("button", {
+      type: "button", class: "reach-item", onclick: () => open(a.path, a.line),
+      title: `${a.why || a.name}\nOpen ${a.path}:${a.line}`,
+    },
+    h("span", { class: "r-name" }, h("code", {}, short(a.name)), h("small", {}, `${a.path}:${a.line}`)),
+    h("span", { class: "heat" }, h("span", { class: "bar", "aria-hidden": "true" }, fill),
+      h("b", { class: "score" }, score.toFixed(2))),
+    h("span", { class: "hops" }, plural(Number(a.hops) || 0, "hop"))));
+  }
+
+  // -- what changed ------------------------------------------------------------------------
+  function drawChanges(changes) {
+    fill($("#changes"), heading("What changed", changes.length), changes.length
+      ? h("ul", { class: "changes" }, changes.map(changeRow))
+      : h("p", { class: "quiet" }, "No definition changed."));
+  }
+
+  // a change's detail, when it says more than its kind: a new signature reads old -> new
+  const PLAIN = new Set(["removed", "added", "body"]);
+  function detail(c) {
+    if (!c.detail || PLAIN.has(c.kind)) return null;
+    const [before, after] = String(c.detail).split(/\s{2}->\s{2}/);
+    return h("span", { class: "c-detail" }, after === undefined ? before
+      : [h("del", {}, before), h("span", { class: "arrow", "aria-label": "becomes" }, " → "), h("ins", {}, after)]);
+  }
+
+  function changeRow(c) {
+    const kind = KINDS.includes(c.kind) ? c.kind : "other";
+    return h("li", {}, h("button", {
+      type: "button", class: "change", onclick: () => open(c.path, c.line),
+      title: `${c.name}\nOpen ${c.path}:${c.line}`,
+    },
+    h("span", { class: `kind ${kind}` }, c.kind || "changed"),
+    h("span", { class: "c-name" }, h("code", {}, short(c.name)), h("small", {}, `${c.path}:${c.line}`)),
+    detail(c)));
+  }
+
+  // -- what the check could not do: quiet, at the bottom -----------------------------------
+  function drawErrors(errors) {
+    const text = errors.map((e) => (typeof e === "string" ? e : (e && e.message) || JSON.stringify(e)));
+    const box = $("#errors");
+    box.hidden = !text.length;
+    fill(box, text.length && h("details", {},
+      h("summary", {}, `${plural(text.length, "thing")} the check could not do`),
+      h("ul", {}, text.map((t) => h("li", {}, t)))));
+  }
+
+  // -- the whole report --------------------------------------------------------------------
   function draw(report) {
+    current = report;
+    busy(false);
     const findings = report.findings || [], affected = report.affected || [];
     const changes = report.changes || [];
-    $("#head").innerHTML = `
-      <span class="verdict ${esc(report.verdict)}">${esc(report.verdict)}</span>
-      <span>${plural(findings.length, "finding")} · ${plural(changes.length, "change")}${
-        affected.length ? ` · reaches ${plural(affected.length, "definition")} nobody edited` : ""}</span>`;
-    drawMap(report);
-    $("#lists").innerHTML = `
-      <h2>Checklist</h2>
-      ${findings.length ? `<ul class="findings">${findings.map((f, i) => `<li>
-          <button data-i="${i}"><span class="sev ${esc(f.severity)}">${esc(f.severity)}</span>
-            <code>${esc(f.rule)}</code> <span class="where">${esc(f.path)}:${f.line}</span></button>
-          <p>${esc(f.message)}</p>${f.fix ? `<p class="fix">fix: ${esc(f.fix)}</p>` : ""}</li>`).join("")}</ul>`
-        : `<p class="muted">Nothing to check in what this change touched.</p>`}
-      ${affected.length ? `<h2>What it reaches</h2><ul class="reach">${affected.slice(0, 12).map((a) => `<li>
-          <button data-path="${esc(a.path)}" data-line="${a.line}"><b>${a.score.toFixed(2)}</b>
-            <code>${esc(a.name)}</code> <span class="where">${a.hops} hop${a.hops === 1 ? "" : "s"}</span></button></li>`).join("")}</ul>` : ""}`;
-    $("#lists").querySelectorAll("button[data-i]").forEach((b) => b.addEventListener("click", () => {
-      const f = findings[Number(b.dataset.i)];
-      api.postMessage({ type: "open", path: f.path, line: f.line });
-    }));
-    $("#lists").querySelectorAll("button[data-path]").forEach((b) => b.addEventListener("click", () => {
-      api.postMessage({ type: "open", path: b.dataset.path, line: Number(b.dataset.line) });
-    }));
+    $("#welcome").hidden = true;
+    $("#report").hidden = false;
+    $("#again").hidden = false;
+    drawVerdict(report, findings, changes, affected);
+    drawLede(changes, affected);
+    // the map plays the change spreading the first time, and again when the change is new
+    const key = changes.map((c) => `${c.kind} ${c.name}`).sort().join("\n");
+    drawMap(report, key !== lastChanges);
+    lastChanges = key;
+    drawChecklist(findings);
+    drawReach(affected);
+    drawChanges(changes);
+    drawErrors(report.errors || []);
   }
 
   window.addEventListener("message", (e) => {
     const d = e.data || {};
-    if (d.type === "report" && d.report) draw(d.report);
+    if (d.type === "report" && d.report) {
+      if ("repo" in d) setRepo(d.repo);
+      draw(d.report);
+    }
+    if (d.type === "repo") setRepo(d.repo);
   });
   api.postMessage({ type: "ready" });
 })();

@@ -8,6 +8,9 @@ everyone's shared work in progress at once.
 
 from __future__ import annotations
 
+import ast
+import re
+from collections import Counter
 from pathlib import Path
 
 from magellan_lite.combine import _changed, combine, derive
@@ -125,6 +128,7 @@ def code_map(before: Snapshot, after: Snapshot, report: dict, limit: int = MAX_N
             keep |= set(rest[:limit - len(keep)])
         edges = [e for e in edges if e["src"] in keep and e["dst"] in keep]
 
+    unused = _unmentioned(after, {n: d for n, (d, removed) in defs.items() if not removed})
     nodes = []
     for name in sorted(keep):
         d, removed = defs[name]
@@ -139,6 +143,7 @@ def code_map(before: Snapshot, after: Snapshot, report: dict, limit: int = MAX_N
             "score": hit["score"] if hit else 0,
             "hops": hit["hops"] if hit else 0,
             "finding": not removed and _has_finding(d, report["findings"]),
+            "unused": name in unused,
         })
     return {"nodes": nodes, "edges": edges}
 
@@ -146,3 +151,54 @@ def code_map(before: Snapshot, after: Snapshot, report: dict, limit: int = MAX_N
 def _has_finding(d: Definition, findings: list[dict]) -> bool:
     return any(f["path"] == d.path and d.line <= f["line"] <= d.end_line and d.kind != "class"
                for f in findings)
+
+
+_WORDS = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*")
+
+
+def _unmentioned(snapshot: Snapshot, defs: dict[str, Definition]) -> set[str]:
+    """Definitions whose name appears nowhere in the project except where they are defined:
+    nothing calls, reads, imports or re-exports them under that name -- probably dead code
+    (the 3D view's skull). Only a call by a computed name, or a user outside the project,
+    can still reach them. Text, not the call graph: a name used at module level or in a class
+    body counts too, which the graph does not see.
+
+    Left out, because something finds them without naming them: decorated definitions (the
+    decorator registers them: a route, a rule, a fixture), dunder methods, subclasses and the
+    members of subclasses (a framework calls the overrides, a registry finds the subclass),
+    and tests (the runner finds them by their names)."""
+    mentions = Counter()
+    for text in snapshot.files.values():
+        mentions.update(_WORDS.findall(text))
+    short = {name: (d.label or d.short).split("(", 1)[0] for name, d in defs.items()}
+    defined = Counter(short.values())
+    candidates = {name for name, word in short.items() if mentions[word] <= defined[word]}
+
+    decorated: set[tuple[str, int]] = set()
+    for path in {defs[n].path for n in candidates if defs[n].path.endswith(".py")}:
+        tree = snapshot.tree(path)
+        for node in ast.walk(tree) if tree is not None else ():
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.decorator_list:
+                decorated.add((path, node.lineno))
+
+    def found_otherwise(name: str) -> bool:
+        d = defs[name]
+        word = short[name]
+        if (d.path, d.line) in decorated or (word.startswith("__") and word.endswith("__")):
+            return True
+        if d.path.endswith(".py") and _TEST_PATH.search(d.path):
+            return True
+        if not d.path.endswith(".py"):                      # Java annotations, C attributes
+            lines = snapshot.files.get(d.path, "").splitlines()
+            i = d.line - 2
+            while 0 <= i < len(lines) and not lines[i].strip():
+                i -= 1
+            if 0 <= i < len(lines) and lines[i].lstrip().startswith("@"):
+                return True
+        subclass = lambda c: bool(c and c.kind == "class" and c.signature.strip() not in ("", "object"))   # noqa: E731
+        return subclass(d) or subclass(defs.get(name.rsplit(".", 1)[0]))
+
+    return {name for name in candidates if not found_otherwise(name)}
+
+
+_TEST_PATH = re.compile(r"(^|/)(tests?/|test_[^/]*$|[^/]*_test\.py$|conftest\.py$)")

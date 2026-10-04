@@ -155,8 +155,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.format == "json":
         out = report.to_dict()
         if args.map:
-            from magellan_lite.web import code_map
-            out["map"] = code_map(before, after, out)
+            from magellan_lite.web import PROJECT_NODES, code_map
+            out["map"] = code_map(before, after, out, PROJECT_NODES, whole=True)   # the whole project, for 3D
         print(json.dumps(out, indent=2))
     elif args.format == "markdown":
         print(markdown(report))
