@@ -1,6 +1,6 @@
 {
   "title": "Therac-25, 1985-1987: radiation overdoses from a race condition",
-  "what_happened": "The operator could edit the prescription (beam mode and energy) while the treatment task was still setting up the magnets. The two tasks shared those values without synchronisation, so a quick edit was not seen by the setup task: the machine fired a high-current electron beam configured for X-ray mode. The Therac-20 had hardware interlocks that caught this; the Therac-25 relied on software alone. Six known accidents, at least three fatal.",
+  "what_happened": "The operator could edit the prescription (beam mode and energy) while the treatment task was still setting the bending magnets, which took about eight seconds. The two tasks shared those values without synchronisation, so a quick correction from X-ray to electron mode was not fully seen by the setup task: the machine fired the high-current beam meant for X-ray mode without the X-ray target in its path, about 100 times the intended dose. The Therac-20 had hardware interlocks that caught this; the Therac-25 relied on software alone. At least six accidents; three patients died of their overdoses.",
   "sources": [
     "Nancy Leveson and Clark Turner, \"An Investigation of the Therac-25 Accidents\", IEEE Computer (1993)"
   ],
@@ -17,11 +17,11 @@
   "damage": [
     {
       "value": 6,
-      "label": "known accidents: patients given massive radiation overdoses"
+      "label": "known accidents, 1985 to 1987: patients given massive radiation overdoses"
     },
     {
       "value": 3,
-      "label": "deaths, at least"
+      "label": "patients died of their overdoses"
     }
   ],
   "damage_note": "The cost was human. No money figure fits it.",

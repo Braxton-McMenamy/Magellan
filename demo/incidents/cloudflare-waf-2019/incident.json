@@ -1,8 +1,9 @@
 {
-  "title": "Cloudflare, July 2 2019: a WAF rule pins every CPU, 27-minute global outage",
-  "what_happened": "A new managed WAF rule shipped with a regular expression whose `.*(?:.*=.*)` part backtracks super-linearly. Rules deploy globally at once, so every edge server's CPU went to 100% matching HTTP requests against it.",
+  "title": "Cloudflare, July 2 2019: one regular expression exhausts the CPUs, 27-minute global outage",
+  "what_happened": "An engineer deployed an update to the WAF's managed rules: a new rule against cross-site scripting, shipped in \"simulate\" mode, which only logs its matches. It blocked nothing, but its regular expression still ran on every HTTP request, and its `.*(?:.*=.*)` part backtracks super-linearly. WAF rule changes reached every server worldwide within seconds, so the CPU cores serving HTTP and HTTPS traffic everywhere went to nearly 100%, and visitors to every Cloudflare site got 502 errors. A guard that would have limited a regex's CPU use had been removed by mistake in a refactoring of the WAF weeks earlier.",
   "sources": [
-    "Cloudflare blog, \"Details of the Cloudflare outage on July 2, 2019\" (July 12 2019), which quotes the regex"
+    "Cloudflare blog, \"Details of the Cloudflare outage on July 2, 2019\" (July 12 2019), which quotes the regex",
+    "Cloudflare blog, \"Cloudflare outage caused by bad software deploy (updated)\" (July 2 2019)"
   ],
   "language": "Python port (Cloudflare's WAF ran PCRE from Lua); the regex is verbatim.",
   "args": [
@@ -17,16 +18,16 @@
     {
       "value": 27,
       "suffix": " min",
-      "label": "of global outage: Cloudflare's proxy, CDN and WAF down (13:42 to 14:09 UTC)"
+      "label": "of global outage, 13:42 to 14:09 UTC: Cloudflare's proxy, CDN and WAF down, and customers could not reach the dashboard or API either"
     },
     {
-      "value": 80,
+      "value": 82,
       "suffix": "%",
-      "label": "of Cloudflare's traffic lost at the worst point"
+      "label": "drop in Cloudflare's traffic at the worst point"
     },
     {
       "text": "~100%",
-      "label": "CPU on the servers handling HTTP and HTTPS traffic"
+      "label": "CPU on every core serving HTTP and HTTPS traffic, worldwide"
     }
   ],
   "catch": {
@@ -43,10 +44,11 @@
     },
     {
       "dir": "2-new-xss-rule",
-      "what": "The new XSS rule, with the regex from Cloudflare's post-mortem.",
+      "what": "A new XSS rule in simulate mode, with the regex from Cloudflare's post-mortem.",
       "expect": [
         "regex-catastrophic-backtracking"
       ]
     }
-  ]
+  ],
+  "out_of_reach": "Two things no check of this change can see: the WAF's CPU guard, removed by mistake in an earlier refactoring, and the release process that sent rule changes to every server at once. What the code shows is the regular expression itself."
 }

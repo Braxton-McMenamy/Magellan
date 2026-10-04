@@ -106,7 +106,9 @@ What's on it, all drawn from the real engine:
   map lighting up hop by hop as the change reaches its callers, the issue, and whether Magellan
   Lite catches it today or the rule is still in progress.
 - **The checklist**: every rule, and the ones still being written.
-- **Try it**: edit a before and an after version and check the change for real. On the public
+- **Try it**: three small projects, each with one line marked "change this here". Make the
+  change (or press *Do it for me*) and the verdict, checklist and map update as you type:
+  *block*, *review* and *ok* respectively. On the public
   site the engine runs *in the visitor's browser*: `site/data/engine.js` is Magellan Lite's
   own source, run by [Pyodide](https://pyodide.org) (Python compiled to WebAssembly, loaded
   from a CDN), so nothing is uploaded. Under `magellan-lite serve` it uses the local API

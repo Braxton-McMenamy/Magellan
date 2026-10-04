@@ -291,31 +291,73 @@ button.button { font: inherit; font-weight: 600; cursor: pointer; }
 
 /* -- try it ---------------------------------------------------------------------------- */
 .tryit { padding: 18px; }
-.tryit-presets { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip-btn {
-  padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg);
-  color: var(--text); font: 600 .86rem var(--font); cursor: pointer;
+.tryit-examples { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.example-tab {
+  display: flex; align-items: center; gap: 8px; padding: 10px 14px; cursor: pointer; text-align: left;
+  border-radius: 12px; border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  font: 600 .92rem var(--font);
 }
-.chip-btn:hover { border-color: var(--accent); }
-.chip-btn.active { background: var(--accent); border-color: var(--accent); color: #111; }
-.tryit-blurb { margin: 12px 0; color: var(--muted); }
-.tryit-files { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 10px; border-bottom: 1px solid var(--border); }
+.example-tab:hover { border-color: var(--accent); }
+.example-tab.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.example-n {
+  display: inline-grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--border); font-size: .75rem;
+}
+.example-tab.active .example-n { background: var(--accent); color: #111; }
+
+/* the task: what to change, and a shortcut */
+.tryit-task {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin: 14px 0 12px; padding: 12px 16px; border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.tryit-task p { margin: 0; }
+.task-label { color: var(--accent); font-weight: 800; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; }
+.task-hint { margin: 2px 0 6px !important; }
+.task-diff { font: .82rem var(--mono); overflow-wrap: anywhere; }
+.task-diff del { color: var(--block); text-decoration-color: currentColor; }
+.task-diff ins { color: var(--ok); text-decoration: none; font-weight: 700; }
+.task-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.task-actions .button { padding: 7px 14px; font-size: .88rem; }
+
+.tryit-files { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
 .file-tab {
   display: flex; align-items: center; gap: 6px; padding: 6px 10px; cursor: pointer;
   background: none; border: 0; border-bottom: 2px solid transparent; color: var(--muted); font: .8rem var(--mono);
 }
 .file-tab.active { color: var(--text); border-bottom-color: var(--accent); }
 .file-tab .edited { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
-.tryit-editors { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
-.editor { display: grid; gap: 6px; font-weight: 700; font-size: .9rem; }
-.editor small { color: var(--muted); font-weight: 400; }
-.editor textarea {
-  width: 100%; min-height: 230px; resize: vertical; padding: 12px; tab-size: 4;
-  font: .8rem/1.55 var(--mono); color: var(--code-text); background: var(--code-bg);
-  border: 1px solid var(--border); border-radius: 10px;
+.file-tab .here { color: var(--accent); font-weight: 800; }
+
+/* the editor: line numbers, an arrow at the line to change, and a band behind that line */
+.editor-wrap {
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr);
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
 }
-.editor textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-.tryit-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+.editor-wrap:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
+.editor-wrap .gutter, .editor-wrap textarea { font: 13px/20px var(--mono); padding-top: 12px; padding-bottom: 12px; }
+.editor-wrap .gutter {
+  margin: 0; padding-left: 12px; padding-right: 10px; overflow: hidden; text-align: right;
+  color: #4d5d70; user-select: none; position: relative; z-index: 1;
+}
+.editor-wrap .gutter b { color: #f2a93b; }
+.editor-wrap textarea {
+  width: 100%; min-height: 140px; resize: vertical; padding-left: 4px; padding-right: 12px; tab-size: 4;
+  color: var(--code-text); background: transparent; border: 0; outline: none; position: relative; z-index: 1;
+}
+.editor-wrap .band {
+  position: absolute; left: 0; right: 0; z-index: 0; pointer-events: none;
+  background: rgba(242, 169, 59, .14); box-shadow: inset 3px 0 0 #f2a93b; transition: background .3s;
+}
+.editor-wrap .band.done { background: rgba(74, 194, 122, .14); box-shadow: inset 3px 0 0 #4ac27a; }
+.editor-wrap .band:not(.done) { animation: beckon 2.2s ease-in-out infinite; }
+@keyframes beckon { 50% { background: rgba(242, 169, 59, .26); } }
+.tryit-blurb { margin: 10px 0 0; }
+.tryit-status { margin: 4px 0 0; }
+.tryit-waiting {
+  margin: 14px 0 0; padding: 14px 16px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted);
+}
 .tryit-result { margin-top: 14px; transition: opacity .3s; }
 .tryit-result.busy { opacity: .45; }
 .result-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 14px 0 6px; border-top: 1px solid var(--border); }
@@ -350,7 +392,8 @@ button.button { font: inherit; font-weight: 600; cursor: pointer; }
 }
 @media (max-width: 860px) {
   .hero { grid-template-columns: minmax(0, 1fr); }
-  .scene-grid, .reach-grid, .issue-grid, .code-panels.n2, .tryit-editors, .result-grid { grid-template-columns: minmax(0, 1fr); }
+  .scene-grid, .reach-grid, .issue-grid, .code-panels.n2, .result-grid { grid-template-columns: minmax(0, 1fr); }
+  .tryit-examples { grid-template-columns: minmax(0, 1fr); }
   .scene { padding: 20px 18px; }
   .story-stage { min-height: 0; }
   .terminal-window .terminal { height: 340px; }
@@ -367,5 +410,5 @@ button.button { font: inherit; font-weight: 600; cursor: pointer; }
   .js .reveal { opacity: 1; transform: none; transition: none; }
   .scene, .stamp, .issue-card, .ln { transition: none; }
   .map .edge.impact.lit, .map .node.finding.lit .halo, .map .node.changed.lit .halo,
-  .ln.hit.flash, .t-cursor, .verdict-big { animation: none; }
+  .ln.hit.flash, .t-cursor, .verdict-big, .editor-wrap .band { animation: none; }
 }

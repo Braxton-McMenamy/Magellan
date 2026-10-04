@@ -3,7 +3,7 @@ window.MAGELLAN_INCIDENTS = [
  {
   "name": "azure-leap-day-2012",
   "title": "Windows Azure, February 29 2012: the leap-day outage",
-  "what_happened": "The guest agent in every new VM created a transfer certificate valid until \"the same date next year\", computed by adding one to the year. On February 29 2012 that date, February 29 2013, did not exist; certificate creation failed, VMs failed to start, hosts were marked faulty, and the failures cascaded across clusters for most of a day.",
+  "what_happened": "The guest agent in every new VM created a transfer certificate valid until \"the same date next year\", computed by adding one to the year. On February 29 2012 that date, February 29 2013, did not exist, so certificate creation failed and the VMs never started. After three failed starts a server was assumed to be faulty hardware, its VMs were moved to other servers, where the same bug struck, and the failure cascaded until whole clusters were halted. It took 34 hours, including a second outage caused while rolling out the fix, until every service was healthy again.",
   "sources": [
    "Microsoft, \"Summary of Windows Azure Service Disruption on Feb 29th, 2012\" (March 2012)"
   ],
@@ -197,16 +197,17 @@ window.MAGELLAN_INCIDENTS = [
  },
  {
   "name": "cloudflare-waf-2019",
-  "title": "Cloudflare, July 2 2019: a WAF rule pins every CPU, 27-minute global outage",
-  "what_happened": "A new managed WAF rule shipped with a regular expression whose `.*(?:.*=.*)` part backtracks super-linearly. Rules deploy globally at once, so every edge server's CPU went to 100% matching HTTP requests against it.",
+  "title": "Cloudflare, July 2 2019: one regular expression exhausts the CPUs, 27-minute global outage",
+  "what_happened": "An engineer deployed an update to the WAF's managed rules: a new rule against cross-site scripting, shipped in \"simulate\" mode, which only logs its matches. It blocked nothing, but its regular expression still ran on every HTTP request, and its `.*(?:.*=.*)` part backtracks super-linearly. WAF rule changes reached every server worldwide within seconds, so the CPU cores serving HTTP and HTTPS traffic everywhere went to nearly 100%, and visitors to every Cloudflare site got 502 errors. A guard that would have limited a regex's CPU use had been removed by mistake in a refactoring of the WAF weeks earlier.",
   "sources": [
-   "Cloudflare blog, \"Details of the Cloudflare outage on July 2, 2019\" (July 12 2019), which quotes the regex"
+   "Cloudflare blog, \"Details of the Cloudflare outage on July 2, 2019\" (July 12 2019), which quotes the regex",
+   "Cloudflare blog, \"Cloudflare outage caused by bad software deploy (updated)\" (July 2 2019)"
   ],
   "language": "Python port (Cloudflare's WAF ran PCRE from Lua); the regex is verbatim.",
   "steps": [
    {
     "dir": "2-new-xss-rule",
-    "what": "The new XSS rule, with the regex from Cloudflare's post-mortem.",
+    "what": "A new XSS rule in simulate mode, with the regex from Cloudflare's post-mortem.",
     "verdict": "ok",
     "status": "waiting",
     "rules": {
@@ -220,26 +221,26 @@ window.MAGELLAN_INCIDENTS = [
       "kind": "value",
       "name": "waf.rules.RULES",
       "path": "waf/rules.py",
-      "line": 5,
-      "detail": "{'sqli-union-select': re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b'), 'xss-script-tag': re.compile('(?i)<\\\\s*script\\\\b'), 'path-traversal': re.compile('(?:\\\\.\\\\./){2,}')}  ->  {'sqli-union-select': re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b'), 'xss-script-tag': re.compile('(?i)<\\\\s*script\\\\b'), 'path-traversal': re.compile('(?:\\\\.\\\\./){2,}'), 'xss-inline-js': re.compile('(?:(?:\"|\\'|\\\\]|\\\\}|\\\\\\\\|\\\\d|(?:nan|infinity|true|false|null|undefined|symbol|math)|`|\\\\-|\\\\+)+[)]*;?((?:\\\\s|-|~|!|{}|\\\\|\\\\||\\\\+)*.*(?:.*=.*)))')}"
+      "line": 7,
+      "detail": "{'sqli-union-select': ('block', re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b')), 'xss-script-tag': ('block', re.compile('(?i)<\\\\s*script\\\\b')), 'path-traversal': ('block', re.compile('(?:\\\\.\\\\./){2,}'))}  ->  {'sqli-union-select': ('block', re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b')), 'xss-script-tag': ('block', re.compile('(?i)<\\\\s*script\\\\b')), 'path-traversal': ('block', re.compile('(?:\\\\.\\\\./){2,}')), 'xss-inline-js': ('simulate', re.compile('(?:(?:\"|\\'|\\\\]|\\\\}|\\\\\\\\|\\\\d|(?:nan|infinity|true|false|null|undefined|symbol|math)|`|\\\\-|\\\\+)+[)]*;?((?:\\\\s|-|~|!|{}|\\\\|\\\\||\\\\+)*.*(?:.*=.*)))'))}"
      }
     ],
     "affected": [
      {
       "name": "waf.rules.matching_rules",
       "path": "waf/rules.py",
-      "line": 15,
+      "line": 18,
       "hops": 1,
       "score": 0.68,
-      "why": "waf.rules.matching_rules reads waf.rules.RULES (waf/rules.py:16)"
+      "why": "waf.rules.matching_rules reads waf.rules.RULES (waf/rules.py:20)"
      },
      {
       "name": "waf.edge.handle_request",
       "path": "waf/edge.py",
-      "line": 4,
+      "line": 7,
       "hops": 2,
       "score": 0.61,
-      "why": "waf.edge.handle_request calls waf.rules.matching_rules (waf/edge.py:5)"
+      "why": "waf.edge.handle_request calls waf.rules.matching_rules (waf/edge.py:8)"
      }
     ]
    }
@@ -249,16 +250,16 @@ window.MAGELLAN_INCIDENTS = [
    {
     "value": 27,
     "suffix": " min",
-    "label": "of global outage: Cloudflare's proxy, CDN and WAF down (13:42 to 14:09 UTC)"
+    "label": "of global outage, 13:42 to 14:09 UTC: Cloudflare's proxy, CDN and WAF down, and customers could not reach the dashboard or API either"
    },
    {
-    "value": 80,
+    "value": 82,
     "suffix": "%",
-    "label": "of Cloudflare's traffic lost at the worst point"
+    "label": "drop in Cloudflare's traffic at the worst point"
    },
    {
     "text": "~100%",
-    "label": "CPU on the servers handling HTTP and HTTPS traffic"
+    "label": "CPU on every core serving HTTP and HTTPS traffic, worldwide"
    }
   ],
   "catch": {
@@ -268,9 +269,10 @@ window.MAGELLAN_INCIDENTS = [
    "says": "The new pattern ends in .*(?:.*=.*): three unbounded parts that can match the same characters, so on a long request the regex engine tries a super-linear number of ways to split it.",
    "fix": "Drop the redundant .* parts or bound them, and time the pattern on long inputs before it ships."
   },
+  "out_of_reach": "Two things no check of this change can see: the WAF's CPU guard, removed by mistake in an earlier refactoring, and the release process that sent rule changes to every server at once. What the code shows is the regular expression itself.",
   "story": {
    "step": "2-new-xss-rule",
-   "what": "The new XSS rule, with the regex from Cloudflare's post-mortem.",
+   "what": "A new XSS rule in simulate mode, with the regex from Cloudflare's post-mortem.",
    "verdict": "ok",
    "rules": {
     "regex-catastrophic-backtracking": "waiting"
@@ -283,17 +285,17 @@ window.MAGELLAN_INCIDENTS = [
       [
        " ",
        1,
-       "\"\"\"Managed WAF rules: each is a regular expression run against request data at the edge.\"\"\""
+       "\"\"\"Managed WAF rules: each is a regular expression run against request data at the edge."
       ],
       [
        " ",
        2,
-       ""
+       "A rule in \"block\" mode refuses the requests it matches; a rule in \"simulate\" mode only logs"
       ],
       [
        " ",
        3,
-       "import re"
+       "them. Every rule runs on every request, whatever its mode.\"\"\""
       ],
       [
        " ",
@@ -303,62 +305,82 @@ window.MAGELLAN_INCIDENTS = [
       [
        " ",
        5,
-       "RULES = {"
+       "import re"
       ],
       [
        " ",
        6,
-       "    \"sqli-union-select\": re.compile(r\"(?i)\\bunion\\b\\s+(?:all\\s+)?\\bselect\\b\"),"
+       ""
       ],
       [
        " ",
        7,
-       "    \"xss-script-tag\": re.compile(r\"(?i)<\\s*script\\b\"),"
+       "RULES = {"
       ],
       [
        " ",
        8,
-       "    \"path-traversal\": re.compile(r\"(?:\\.\\./){2,}\"),"
+       "    \"sqli-union-select\": (\"block\", re.compile(r\"(?i)\\bunion\\b\\s+(?:all\\s+)?\\bselect\\b\")),"
       ],
       [
-       "+",
+       " ",
        9,
-       "    # 2019-07-02: new managed rule for inline JavaScript used in XSS attacks"
+       "    \"xss-script-tag\": (\"block\", re.compile(r\"(?i)<\\s*script\\b\")),"
       ],
       [
-       "+",
+       " ",
        10,
-       "    \"xss-inline-js\": re.compile("
+       "    \"path-traversal\": (\"block\", re.compile(r\"(?:\\.\\./){2,}\")),"
       ],
       [
        "+",
        11,
-       "        r\"\"\"(?:(?:\"|'|\\]|\\}|\\\\|\\d|(?:nan|infinity|true|false|null|undefined|symbol|math)|`|\\-|\\+)+[)]*;?((?:\\s|-|~|!|{}|\\|\\||\\+)*.*(?:.*=.*)))\"\"\"),"
+       "    # 2019-07-02: a new rule for inline JavaScript used in XSS attacks, shipped in \"simulate\""
       ],
       [
-       " ",
+       "+",
        12,
-       "}"
+       "    # mode: it blocks nothing, but its regular expression runs on every request"
       ],
       [
-       " ",
+       "+",
        13,
-       ""
+       "    \"xss-inline-js\": (\"simulate\", re.compile("
       ],
       [
-       " ",
+       "+",
        14,
-       ""
+       "        r\"\"\"(?:(?:\"|'|\\]|\\}|\\\\|\\d|(?:nan|infinity|true|false|null|undefined|symbol|math)|`|\\-|\\+)+[)]*;?((?:\\s|-|~|!|{}|\\|\\||\\+)*.*(?:.*=.*)))\"\"\")),"
       ],
       [
        " ",
        15,
-       "def matching_rules(payload: str) -> list[str]:"
+       "}"
       ],
       [
        " ",
        16,
-       "    return [name for name, rule in RULES.items() if rule.search(payload)]"
+       ""
+      ],
+      [
+       " ",
+       17,
+       ""
+      ],
+      [
+       " ",
+       18,
+       "def matching_rules(payload: str) -> list[tuple[str, str]]:"
+      ],
+      [
+       " ",
+       19,
+       "    \"\"\"``(rule, mode)`` for every rule that matches the payload.\"\"\""
+      ],
+      [
+       " ",
+       20,
+       "    return [(name, mode) for name, (mode, rule) in RULES.items() if rule.search(payload)]"
       ]
      ],
      "marks": []
@@ -369,8 +391,8 @@ window.MAGELLAN_INCIDENTS = [
      "kind": "value",
      "name": "waf.rules.RULES",
      "path": "waf/rules.py",
-     "line": 5,
-     "detail": "{'sqli-union-select': re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b'), 'xss-script-tag': re.compile('(?i)<\\\\s*script\\\\b'), 'path-traversal': re.compile('(?:\\\\.\\\\./){2,}')}  ->  {'sqli-union-select': re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b'), 'xss-script-tag': re.compile('(?i)<\\\\s*script\\\\b'), 'path-traversal': re.compile('(?:\\\\.\\\\./){2,}'), 'xss-inline-js': re.compile('(?:(?:\"|\\'|\\\\]|\\\\}|\\\\\\\\|\\\\d|(?:nan|infinity|true|false|null|undefined|symbol|math)|`|\\\\-|\\\\+)+[)]*;?((?:\\\\s|-|~|!|{}|\\\\|\\\\||\\\\+)*.*(?:.*=.*)))')}"
+     "line": 7,
+     "detail": "{'sqli-union-select': ('block', re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b')), 'xss-script-tag': ('block', re.compile('(?i)<\\\\s*script\\\\b')), 'path-traversal': ('block', re.compile('(?:\\\\.\\\\./){2,}'))}  ->  {'sqli-union-select': ('block', re.compile('(?i)\\\\bunion\\\\b\\\\s+(?:all\\\\s+)?\\\\bselect\\\\b')), 'xss-script-tag': ('block', re.compile('(?i)<\\\\s*script\\\\b')), 'path-traversal': ('block', re.compile('(?:\\\\.\\\\./){2,}')), 'xss-inline-js': ('simulate', re.compile('(?:(?:\"|\\'|\\\\]|\\\\}|\\\\\\\\|\\\\d|(?:nan|infinity|true|false|null|undefined|symbol|math)|`|\\\\-|\\\\+)+[)]*;?((?:\\\\s|-|~|!|{}|\\\\|\\\\||\\\\+)*.*(?:.*=.*)))'))}"
     }
    ],
    "findings": [],
@@ -378,27 +400,39 @@ window.MAGELLAN_INCIDENTS = [
     {
      "name": "waf.rules.matching_rules",
      "path": "waf/rules.py",
-     "line": 15,
+     "line": 18,
      "hops": 1,
      "score": 0.68,
-     "why": "waf.rules.matching_rules reads waf.rules.RULES (waf/rules.py:16)"
+     "why": "waf.rules.matching_rules reads waf.rules.RULES (waf/rules.py:20)"
     },
     {
      "name": "waf.edge.handle_request",
      "path": "waf/edge.py",
-     "line": 4,
+     "line": 7,
      "hops": 2,
      "score": 0.61,
-     "why": "waf.edge.handle_request calls waf.rules.matching_rules (waf/edge.py:5)"
+     "why": "waf.edge.handle_request calls waf.rules.matching_rules (waf/edge.py:8)"
     }
    ],
    "map": {
     "nodes": [
      {
+      "id": "waf.edge.SIMULATED",
+      "label": "SIMULATED",
+      "path": "waf/edge.py",
+      "line": 4,
+      "kind": "constant",
+      "change": "",
+      "removed": false,
+      "score": 0,
+      "hops": 0,
+      "finding": false
+     },
+     {
       "id": "waf.edge.handle_request",
       "label": "handle_request",
       "path": "waf/edge.py",
-      "line": 4,
+      "line": 7,
       "kind": "function",
       "change": "",
       "removed": false,
@@ -410,7 +444,7 @@ window.MAGELLAN_INCIDENTS = [
       "id": "waf.rules.RULES",
       "label": "RULES",
       "path": "waf/rules.py",
-      "line": 5,
+      "line": 7,
       "kind": "constant",
       "change": "value",
       "removed": false,
@@ -422,7 +456,7 @@ window.MAGELLAN_INCIDENTS = [
       "id": "waf.rules.matching_rules",
       "label": "matching_rules",
       "path": "waf/rules.py",
-      "line": 15,
+      "line": 18,
       "kind": "function",
       "change": "",
       "removed": false,
@@ -436,6 +470,12 @@ window.MAGELLAN_INCIDENTS = [
       "src": "waf.edge.handle_request",
       "dst": "waf.rules.matching_rules",
       "kind": "calls",
+      "guess": false
+     },
+     {
+      "src": "waf.edge.handle_request",
+      "dst": "waf.edge.SIMULATED",
+      "kind": "reads",
       "guess": false
      },
      {
@@ -569,12 +609,12 @@ window.MAGELLAN_INCIDENTS = [
     "value": 460,
     "prefix": "$",
     "suffix": "M",
-    "label": "lost: \"a loss of more than $460 million\" (SEC)"
+    "label": "lost: \"Knight lost over $460 million\" (SEC)"
    },
    {
     "value": 45,
     "suffix": " min",
-    "label": "the first 45 minutes after the market opened"
+    "label": "the first 45 minutes after the market opened, routing millions of orders"
    },
    {
     "value": 397,
@@ -1073,7 +1113,7 @@ window.MAGELLAN_INCIDENTS = [
    {
     "value": 8.5,
     "suffix": "M",
-    "label": "Windows machines crashed (Microsoft's count)"
+    "label": "Windows devices affected (Microsoft's estimate)"
    },
    {
     "value": 5.4,
@@ -1082,7 +1122,7 @@ window.MAGELLAN_INCIDENTS = [
     "label": "estimated direct losses for US Fortune 500 companies alone (Parametrix)"
    }
   ],
-  "damage_of": "CrowdStrike, July 19 2024, the real failure of this kind: the sensor's template type defined 21 input fields, but the code that called it supplied 20. An update that used the 21st made the sensor read past its input, and Windows crashed at boot.",
+  "damage_of": "CrowdStrike, July 19 2024, the real failure of this kind: the sensor's IPC template type defined 21 input fields, but the code that called it supplied only 20. A content update that used the 21st made the sensor read past the end of its input, and Windows crashed.",
   "catch": {
    "rule": "signature-break",
    "path": "sensor/collector.py",
@@ -1979,7 +2019,7 @@ window.MAGELLAN_INCIDENTS = [
  {
   "name": "therac-25-1986",
   "title": "Therac-25, 1985-1987: radiation overdoses from a race condition",
-  "what_happened": "The operator could edit the prescription (beam mode and energy) while the treatment task was still setting up the magnets. The two tasks shared those values without synchronisation, so a quick edit was not seen by the setup task: the machine fired a high-current electron beam configured for X-ray mode. The Therac-20 had hardware interlocks that caught this; the Therac-25 relied on software alone. Six known accidents, at least three fatal.",
+  "what_happened": "The operator could edit the prescription (beam mode and energy) while the treatment task was still setting the bending magnets, which took about eight seconds. The two tasks shared those values without synchronisation, so a quick correction from X-ray to electron mode was not fully seen by the setup task: the machine fired the high-current beam meant for X-ray mode without the X-ray target in its path, about 100 times the intended dose. The Therac-20 had hardware interlocks that caught this; the Therac-25 relied on software alone. At least six accidents; three patients died of their overdoses.",
   "sources": [
    "Nancy Leveson and Clark Turner, \"An Investigation of the Therac-25 Accidents\", IEEE Computer (1993)"
   ],
@@ -2019,11 +2059,11 @@ window.MAGELLAN_INCIDENTS = [
   "damage": [
    {
     "value": 6,
-    "label": "known accidents: patients given massive radiation overdoses"
+    "label": "known accidents, 1985 to 1987: patients given massive radiation overdoses"
    },
    {
     "value": 3,
-    "label": "deaths, at least"
+    "label": "patients died of their overdoses"
    }
   ],
   "damage_note": "The cost was human. No money figure fits it.",
@@ -2354,8 +2394,8 @@ window.MAGELLAN_INCIDENTS = [
     "label": "frozen at boot until the date rolled over (Microsoft: let the battery run down, recharge after noon GMT on January 1)"
    },
    {
-    "text": "All",
-    "label": "30 GB Zunes, worldwide, on the last day of 2008"
+    "text": "Every",
+    "label": "30 GB Zune started on December 31, 2008 froze at boot"
    }
   ],
   "catch": {
