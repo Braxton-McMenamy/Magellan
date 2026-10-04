@@ -4,3 +4,4 @@ shared.json
 *.vsix
 bundle.js
 **/__pycache__/**
+media/readme/**
