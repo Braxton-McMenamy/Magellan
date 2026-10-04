@@ -48,7 +48,7 @@ test("Python's answer: JSON, or a reason a person can act on", () => {
     "GitError: not a git repository");
 });
 
-test("low findings can be hidden (TODO(faidh) 2)", { skip: "TODO(faidh) 2: the showLow setting" }, () => {
+test("low findings can be hidden", () => {
   const p = lite.problems(REPORT, "", false);
   assert.deepEqual(Object.keys(p), ["sensor/collector.py"]);
 });

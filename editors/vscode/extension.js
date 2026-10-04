@@ -22,12 +22,6 @@
  * itself (python.js), and finds the workspace's GitHub repository from git (repo.js).
  * `activate(context, deps)` takes optional `vscode` and `execFile` so tests can run it without
  * VS Code: see test/extension.test.js.
- *
- * TODO(faidh) 3: give the extension an icon.
- *   1. Copy media/icon.png from the original Magellan extension (editors/vscode/media/ in that
- *      repo) into this folder's media/, or make a 128x128 PNG of the site's ◆ logo.
- *   2. In package.json, add `"icon": "media/icon.png",` under "displayName".
- *   Done when the Extensions view shows the icon next to "Magellan Lite".
  */
 const path = require("path");
 const { execFile } = require("child_process");
@@ -41,6 +35,7 @@ function activate(context, deps = {}) {
   const vscode = deps.vscode || require("vscode");
   const run = deps.execFile || execFile;
   const cfg = () => vscode.workspace.getConfiguration("magellanLite");
+  const showLow = () => cfg().get("showLow") !== false;
   const folder =() => (vscode.workspace.workspaceFolders || [])[0];
   const sub = (d) => { context.subscriptions.push(d); return d; };
 
@@ -55,7 +50,7 @@ function activate(context, deps = {}) {
   out.appendLine(`Magellan Lite activated in ${folder() ? folder().uri.fsPath : "a window with no folder"}`);
   const state = { report: null, team: null, panel: null, timer: null, repo: null,
     shareTimer: null, sharing: false, lastShare: 0, shareFailed: false };
-  const sidebar = installSidebar(vscode, { folder, state, sub });
+  const sidebar = installSidebar(vscode, { folder, state, sub, showLow });
   // the sidebar's empty views say which: checking, nofolder, failed (and how to fix it), ready
   const setState = (s) => Promise.resolve(vscode.commands.executeCommand("setContext", "magellanLite.state", s)).catch(() => {});
   setState(folder() ? "checking" : "nofolder");
@@ -152,20 +147,15 @@ function activate(context, deps = {}) {
     const r = await python(lite.checkArgs(cfg().get("against")));
     if (r.error) return failed(r.error, r.nopython), null;
     state.report = r.data;
-    show(checks, lite.problems(r.data));
+    show(checks, lite.problems(r.data, "", showLow()));
     sidebar.refresh();
     setState("ready");
     const s = lite.statusFor(r.data);
     status.text = s.text;
     status.tooltip = s.tip + (state.lastShareText ? `\n${state.lastShareText}` : "");
     // coloured by verdict, so a block can't be missed: red on block, yellow on review
-    // TODO(faidh) 1: colour the status bar by verdict, so a BLOCK can't be missed.
-    //   1. Here, set `status.backgroundColor` to
-    //      `new vscode.ThemeColor("statusBarItem.errorBackground")` when
-    //      `r.data.verdict === "block"`, to `new vscode.ThemeColor("statusBarItem.warningBackground")`
-    //      for "review", and to `undefined` for "ok".
-    //   2. In test/extension.test.js, delete `{ skip: ... }` from the "the status bar is red on
-    //      a block" test. Done when `node --test "editors/vscode/test/*.test.js"` passes.
+    const colour = VERDICT_BACKGROUND[r.data.verdict];
+    status.backgroundColor = colour ? new vscode.ThemeColor(colour) : undefined;
     if (state.panel) state.panel.webview.postMessage({ type: "report", report: r.data, repo: state.repo && state.repo.slug });
     return r.data;
   }
@@ -286,6 +276,10 @@ function activate(context, deps = {}) {
   sub(vscode.workspace.onDidChangeConfiguration((e) => {
     if (e.affectsConfiguration("magellanLite.shareOnSave") && cfg().get("shareOnSave") === true) warnShareOnSave();
     if (e.affectsConfiguration("magellanLite.pythonPath")) { interpreter = null; check(); }
+    if (e.affectsConfiguration("magellanLite.showLow") && state.report) {   // the last report again, no new check
+      show(checks, lite.problems(state.report, "", showLow()));
+      sidebar.refresh();
+    }
   }));
   sub({ dispose: () => { clearTimeout(state.timer); clearTimeout(state.shareTimer); } });
 
@@ -295,6 +289,9 @@ function activate(context, deps = {}) {
 
 /** What the map panel's buttons may ask for. */
 const PANEL_COMMANDS = new Set(["magellanLite.check", "magellanLite.team", "magellanLite.openSuite"]);
+
+/** The status bar's background by verdict ("ok" has none). */
+const VERDICT_BACKGROUND = { block: "statusBarItem.errorBackground", review: "statusBarItem.warningBackground" };
 
 function deactivate() {}
 

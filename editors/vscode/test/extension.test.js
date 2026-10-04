@@ -284,10 +284,37 @@ test("the sidebar shows the verdict and counts what needs a person on its icon",
   assert.match(f.tooltip.value, /\*\*CRITICAL\*\* · `signature-break`/);
 });
 
-test("the status bar is red on a block (TODO(faidh) 1)", { skip: "TODO(faidh) 1: status bar colours" }, async () => {
+test("the status bar is red on a block, yellow on review, plain when ok", async () => {
   const vscode = fakeVscode();
+  const answers = { check: CHECK };
   const ext = activate({ subscriptions: [], extensionPath: __dirname },
-    { vscode, execFile: fakePython({ check: CHECK }).execFile });
+    { vscode, execFile: fakePython(answers).execFile });
   await ext.first;
   assert.equal(vscode.seen.status.backgroundColor.id, "statusBarItem.errorBackground");
+  answers.check = { ...CHECK, verdict: "review" };
+  await ext.check();
+  assert.equal(vscode.seen.status.backgroundColor.id, "statusBarItem.warningBackground");
+  answers.check = { ...CHECK, verdict: "ok", findings: [] };
+  await ext.check();
+  assert.equal(vscode.seen.status.backgroundColor, undefined);
+});
+
+test("showLow off hides low findings from Problems and the Checklist; turning it on needs no new check", async () => {
+  const settings = { showLow: false };
+  const vscode = fakeVscode(settings);
+  const low = { rule: "debug-leftover", severity: "low", path: "sensor/api.py", line: 3, message: "print() left in" };
+  const py = fakePython({ check: { ...CHECK, findings: [...CHECK.findings, low] } });
+  const ext = activate({ subscriptions: [], extensionPath: __dirname }, { vscode, execFile: py.execFile });
+  await ext.first;
+  const files = () => Object.keys(vscode.seen.diagnostics["magellan-lite"]).sort();
+  const rules = () => vscode.seen.trees["magellanLite.checklist"].getChildren().map((t) => t.label);
+  assert.deepEqual(files(), [path.join(ROOT, "sensor/collector.py")]);
+  assert.deepEqual(rules(), ["signature-break"]);
+  assert.equal(vscode.seen.views["magellanLite.checklist"].description, "BLOCK · 1");
+
+  settings.showLow = true;
+  vscode.seen.onConfig({ affectsConfiguration: (k) => k === "magellanLite.showLow" });
+  assert.deepEqual(files(), [path.join(ROOT, "sensor/api.py"), path.join(ROOT, "sensor/collector.py")].sort());
+  assert.deepEqual(rules(), ["signature-break", "debug-leftover"]);
+  assert.equal(py.checks().length, 1);                   // the last report again, not a new check
 });

@@ -119,6 +119,7 @@ The same renderers draw the website's [Scene](https://magellan-code.pages.dev/sc
 |---|---|---|
 | `magellanLite.checkOnSave` | on | check the change every time you save |
 | `magellanLite.against` | `git:HEAD` | what to compare with: `git:REV`, or a folder holding the old version |
+| `magellanLite.showLow` | on | show low-severity findings (`print()` left in, `== None`, ...); off hides them |
 | `magellanLite.shareOnSave` | off | share your work in progress after you save (at most every 15 seconds) |
 | `magellanLite.pythonPath` | empty | leave it empty; set it only to force one interpreter |
 
@@ -164,12 +165,12 @@ up on the next save.
 
 Every task is a `TODO(<name>)` where the work goes, with numbered steps.
 
-**Faidh**, in this order (each is small, and the first two have a test waiting):
+**Faidh**:
 
-1. `TODO(faidh) 1` in `extension.js`: the status bar turns red on block and yellow on review.
-2. `TODO(faidh) 2` in `lite.js`: a `magellanLite.showLow` setting to hide low-severity findings.
-3. `TODO(faidh) 3` in `extension.js`: an icon for the Extensions view (`media/readme/logo.png`
-   is a ready 256×256 logo: copy it to `media/icon.png`).
+1. Done: the status bar turns red on block and yellow on review (`extension.js`).
+2. Done: the `magellanLite.showLow` setting hides low-severity findings from the Problems panel,
+   the Checklist and the Explorer badges (`lite.js`, `sidebar.js`).
+3. Done: the icon in the Extensions view (`media/icon.png`, from `media/readme/logo.png`).
 4. TODO(faidh) 4, here: once it runs for you, take a screenshot of a squiggle and the status bar
    (the CrowdStrike-class example in `demo/incidents/sensor-signature-break` makes a good one),
    save it as `media/readme/check.png`, and show it under the "Findings where the damage lands"

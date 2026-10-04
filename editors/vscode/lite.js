@@ -23,19 +23,12 @@ const shareArgs = () => run("share", ".");
 /**
  * A report's findings as problems, by file:
  * ``{ "pkg/mod.py": [{ line (0-based), severity, message, rule, fix }] }``.
+ * `showLow` false leaves out low-severity findings (the magellanLite.showLow setting).
  */
-function problems(report, prefix = "") {
+function problems(report, prefix = "", showLow = true) {
   const out = {};
   for (const f of (report && report.findings) || []) {
-    // TODO(faidh) 2: a setting to hide low-severity findings.
-    //   1. In package.json, under "contributes" > "configuration" > "properties", add
-    //      "magellanLite.showLow": { "type": "boolean", "default": true,
-    //      "description": "Show low-severity findings (print() left in, == None, ...)." }
-    //   2. Give this function a third parameter, `showLow = true`, and skip a finding here
-    //      when `!showLow && f.severity === "low"` (use `continue`).
-    //   3. In extension.js, find `lite.problems(` and pass `cfg().get("showLow") !== false`.
-    //   4. In test/lite.test.js, delete `{ skip: ... }` from the "low findings can be hidden"
-    //      test. Done when `node --test "editors/vscode/test/*.test.js"` passes.
+    if (!showLow && f.severity === "low") continue;
     (out[f.path] = out[f.path] || []).push({
       line: Math.max(0, (f.line || 1) - 1),
       severity: SEVERITY[f.severity] || "Warning",

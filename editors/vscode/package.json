@@ -1,6 +1,7 @@
 {
   "name": "magellan-lite",
   "displayName": "Magellan Lite",
+  "icon": "media/icon.png",
   "description": "Know what your change breaks before you commit it: the checklist where the damage lands, the verdict in the status bar, conflicts with your team's work in progress, and a map of what the change reaches. Python, Java, C, Fortran and COBOL. Nothing to install or set up.",
   "version": "0.2.0",
   "publisher": "magellan-lite",
@@ -199,6 +200,11 @@
           "type": "string",
           "default": "git:HEAD",
           "description": "What to compare the working tree with: git:REV, or a folder holding the old version."
+        },
+        "magellanLite.showLow": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show low-severity findings (print() left in, == None, ...)."
         },
         "magellanLite.shareOnSave": {
           "type": "boolean",

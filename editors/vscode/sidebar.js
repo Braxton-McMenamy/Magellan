@@ -20,8 +20,8 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const heat = (score) => ["flame", score >= 0.7 ? "charts.red" : score >= 0.4 ? "charts.orange" : "charts.yellow"];
 
 /** Register the views and badges. `state.report`, `state.team` and `state.repo` feed them;
- *  call `refresh()` after any of them changes. */
-function installSidebar(vscode, { folder, state, sub }) {
+ *  call `refresh()` after any of them changes (or `showLow()`, the magellanLite.showLow setting). */
+function installSidebar(vscode, { folder, state, sub, showLow = () => true }) {
   const refreshers = [];
   const icon = ([id, color] = []) => id && new vscode.ThemeIcon(id, color ? new vscode.ThemeColor(color) : undefined);
   const markdown = (text) => {
@@ -67,7 +67,8 @@ function installSidebar(vscode, { folder, state, sub }) {
       + `${prefix}${f.message}${f.fix ? `\n\n$(lightbulb) ${f.fix}` : ""}`),
   });
 
-  const findings = () => (state.report && state.report.findings) || [];
+  const findings = () => ((state.report && state.report.findings) || [])
+    .filter((f) => f.severity !== "low" || showLow());
   view("magellanLite.checklist", () => findings().map((f) => finding(f)), (tree) => {
     const r = state.report;
     const serious = findings().filter((f) => f.severity === "critical" || f.severity === "high").length;
