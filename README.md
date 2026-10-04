@@ -12,6 +12,8 @@ magellan-lite check                    # the working tree against your last comm
 magellan-lite check --format json      # for tools and CI
 magellan-lite rules                    # the checklist
 magellan-lite serve --open             # the website and its live API on http://localhost:8000
+magellan-lite share                    # publish your work in progress to your team (no commit)
+magellan-lite team                     # your work + each teammate's: what only the combination breaks
 python demo/run.py                     # famous failures, replayed (the demo and the scoreboard)
 python demo/build_site.py              # the website's data, from the real engine (after a rule lands)
 python -m unittest discover -s tests -t .
@@ -34,6 +36,34 @@ The project page is `site/index.html`: see [Website](#website) and [Local server
    findings inside a changed definition are kept, so old problems elsewhere stay quiet.
    `signature-break` and `removed-still-referenced` use the call graph to find the calls a
    change breaks, wherever they are.
+
+## Working as a team
+
+Two changes can each be fine and still break together. Braxton adds a required `layout`
+parameter to `parse_record` (and updates the call he knows about); Alice, on her own branch,
+adds a new call `parse_record(row)`. Different files, so git merges them without a conflict;
+each branch's checks pass; the merge raises TypeError in production.
+
+```sh
+magellan-lite share     # Braxton: pushes his working tree to refs/wip/braxton
+magellan-lite team      # Alice: her work against everyone's shared work in progress
+```
+
+```
+  braxton  (shared just now: 2 changes in 2 files)
+    their changes: channel.parse_record (signature), collector.collect (body)
+    BLOCK · 1 problem that only the combination has
+    [ ] CRITICAL signature-break  sensor/api.py:5
+        sensor.api.upload calls parse_record() the old way: it now requires layout, ...
+```
+
+`share` builds a commit from the working tree with a throwaway index (tracked and new files,
+as `.gitignore` allows) and pushes it to `refs/wip/<your git user.name>`: your branch, index
+and stash are untouched. `team` fetches `refs/wip/*`, overlays each teammate's changed files on
+your working tree (a file you both edited is checked with your version, and named), and
+reports only the findings neither of you has alone. There are no accounts and no server: the
+remote you already use is the shared place, and its permissions decide who sees what.
+`team` exits 1 when a combination blocks (`--fail-on`), and `--format json` is for tools.
 
 ## Writing a rule
 

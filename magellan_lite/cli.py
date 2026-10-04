@@ -2,6 +2,8 @@
 
     magellan-lite check [PATH] [--against git:HEAD] [--format text|json] [--fail-on block]
     magellan-lite rules
+    magellan-lite share [PATH] [--remote origin]      publish your work in progress
+    magellan-lite team  [PATH] [--remote origin]      check it against your teammates'
 
 ``check`` exits 1 when the verdict reaches ``--fail-on`` (default ``block``), so it can gate
 a commit; 2 when it cannot run (not a git repository, no commits yet).
@@ -35,6 +37,21 @@ def build_parser() -> argparse.ArgumentParser:
                    help="exit 1 when the verdict is at least this (default: block)")
 
     sub.add_parser("rules", help="list the checklist rules")
+
+    sh = sub.add_parser("share", help="publish your work in progress (no commit, no branch) "
+                                      "for your teammates' `team` checks")
+    sh.add_argument("path", nargs="?", default=".")
+    sh.add_argument("--remote", default="origin")
+    sh.add_argument("--name", help="your name under refs/wip/ (default: git's user.name)")
+
+    tm = sub.add_parser("team", help="check your work against your teammates' shared work in "
+                                     "progress: problems only the combination has")
+    tm.add_argument("path", nargs="?", default=".")
+    tm.add_argument("--remote", default="origin")
+    tm.add_argument("--name", help="your own name, so your own share is skipped")
+    tm.add_argument("--format", choices=("text", "json"), default="text")
+    tm.add_argument("--fail-on", choices=(*VERDICTS[1:], "never"), default="block",
+                    help="exit 1 when any combination's verdict is at least this")
 
     s = sub.add_parser("serve", help="the website and its live API on this computer")
     s.add_argument("--host", default="127.0.0.1",
@@ -79,6 +96,28 @@ def main(argv: list[str] | None = None) -> int:
             print(f"magellan-lite: cannot listen on {args.host}:{args.port}: {exc}",
                   file=sys.stderr)
             return 2
+
+    if args.command == "share":
+        from magellan_lite.team import share
+        try:
+            ref, commit = share(args.path, args.name, args.remote)
+        except (GitError, OSError) as exc:
+            print(f"magellan-lite: {exc}", file=sys.stderr)
+            return 2
+        print(f"magellan-lite: shared your work in progress as {ref} ({commit[:7]}) on "
+              f"{args.remote}. Your branch is untouched.")
+        return 0
+
+    if args.command == "team":
+        from magellan_lite import team
+        try:
+            results = team.team(args.path, args.remote, args.name)
+        except (GitError, OSError) as exc:
+            print(f"magellan-lite: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps([c.to_dict() for c in results], indent=2) if args.format == "json"
+              else team.text(results))
+        return 1 if any(c.report and c.report.fails(args.fail_on) for c in results) else 0
 
     from magellan_lite.engine import check
     from magellan_lite.output import text

@@ -37,7 +37,7 @@ INCIDENTS = HERE / "incidents"
 #: the hero replays this incident's change, as `magellan-lite check` prints it
 HERO = "sensor-signature-break"
 #: modules the browser never needs: git, the server, the command line
-NOT_IN_BROWSER = {"__main__.py", "cli.py", "git.py", "incidents.py", "server.py"}
+NOT_IN_BROWSER = {"__main__.py", "cli.py", "git.py", "incidents.py", "server.py", "team.py"}
 
 
 # -- the famous failures ----------------------------------------------------------------------
