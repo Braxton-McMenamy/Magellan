@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,29 @@ _spec.loader.exec_module(build_site)
 def value(js: str):
     """The JSON a generated `window.X = ...;` file holds."""
     return json.loads(js[js.index("=") + 1:].strip().rstrip(";"))
+
+
+#: a C function gains a parameter; load.c, untouched, still calls it the old way
+_PARSE = "int parse(const char *s, int len) {\n    return len;\n}\n"
+_LOAD = '#include "parse.h"\nint load(void) {\n    return parse("x", 1);\n}\n'
+C_CHANGE = ({"parse.c": _PARSE, "load.c": _LOAD},
+            {"parse.c": _PARSE.replace("int len)", "int len, int flags)"), "load.c": _LOAD})
+
+
+def run_bundles(bundles: list[dict], code: str, *args: str) -> tuple[str, list]:
+    """What Pyodide does: the bundles' files in a folder of their own, and ``code`` run by a
+    Python that sees nothing else (-I: no site-packages, not this checkout). ``code`` gets the
+    folder on sys.path and ``args`` as sys.argv[2:], and prints JSON. Returns the folder and
+    that JSON."""
+    with tempfile.TemporaryDirectory() as tmp:
+        for bundle in bundles:
+            for path, source in bundle["files"].items():
+                (Path(tmp) / path).parent.mkdir(parents=True, exist_ok=True)
+                (Path(tmp) / path).write_text(source, encoding="utf-8")
+        out = subprocess.run([sys.executable, "-I", "-c",
+                              "import json, sys; sys.path.insert(0, sys.argv[1])\n" + code,
+                              tmp, *args], capture_output=True, text=True, check=True).stdout
+    return tmp, json.loads(out)
 
 
 class SiteData(unittest.TestCase):
@@ -52,30 +76,79 @@ class SiteData(unittest.TestCase):
         # what Pyodide does: import magellan_lite from the bundle alone, then check a change
         bundle = value(self.files[build_site.DATA / "engine.js"])
         self.assertNotIn("magellan_lite/git.py", bundle["files"])     # no git in a browser
-        with tempfile.TemporaryDirectory() as tmp:
-            for path, source in bundle["files"].items():
-                (Path(tmp) / path).parent.mkdir(parents=True, exist_ok=True)
-                (Path(tmp) / path).write_text(source, encoding="utf-8")
-            code = ("import json, sys; sys.path.insert(0, sys.argv[1])\n"
-                    "import magellan_lite\n"
-                    "from magellan_lite.web import check_with_map\n"
-                    "r = check_with_map({'m.py': 'def f(x):\\n    return x\\n', 'u.py': "
-                    "'from m import f\\n\\n\\ndef g():\\n    return f(1)\\n'},\n"
-                    "                   {'m.py': 'def f(x, y):\\n    return x\\n', 'u.py': "
-                    "'from m import f\\n\\n\\ndef g():\\n    return f(1)\\n'})\n"
-                    "from magellan_lite.web import team_live\n"
-                    "t = team_live({'m.py': 'def f(x):\\n    return x\\n'},\n"
-                    "              {'a': {'m.py': 'def f(x, y):\\n    return x\\n'},\n"
-                    "               'b': {'m.py': 'def f(x):\\n    return x\\n', 'u.py': "
-                    "'from m import f\\n\\n\\ndef g():\\n    return f(1)\\n'}})\n"
-                    "print(json.dumps([magellan_lite.__file__, r['verdict'],"
-                    " [f['rule'] for f in r['findings']], t['pairs'][0]['verdict']]))")
-            out = subprocess.run([sys.executable, "-I", "-c", code, tmp], capture_output=True,
-                                 text=True, check=True).stdout
-        where, verdict, rules, together = json.loads(out)
+        tmp, out = run_bundles([bundle], (
+            "import magellan_lite\n"
+            "from magellan_lite.web import check_with_map\n"
+            "r = check_with_map({'m.py': 'def f(x):\\n    return x\\n', 'u.py': "
+            "'from m import f\\n\\n\\ndef g():\\n    return f(1)\\n'},\n"
+            "                   {'m.py': 'def f(x, y):\\n    return x\\n', 'u.py': "
+            "'from m import f\\n\\n\\ndef g():\\n    return f(1)\\n'})\n"
+            "from magellan_lite.web import team_live\n"
+            "t = team_live({'m.py': 'def f(x):\\n    return x\\n'},\n"
+            "              {'a': {'m.py': 'def f(x, y):\\n    return x\\n'},\n"
+            "               'b': {'m.py': 'def f(x):\\n    return x\\n', 'u.py': "
+            "'from m import f\\n\\n\\ndef g():\\n    return f(1)\\n'}})\n"
+            # half-typed code in Try it: a file that doesn't parse is reported, not a crash
+            # (it is tried as Python 2 first: the bundle carries that reader)
+            "h = check_with_map({'m.py': 'x = 1\\n'}, {'m.py': 'x = (1\\n'})\n"
+            "print(json.dumps([magellan_lite.__file__, r['verdict'],"
+            " [f['rule'] for f in r['findings']], t['pairs'][0]['verdict'], h['errors']]))"))
+        where, verdict, rules, together, half_typed = out
         self.assertTrue(where.startswith(tmp))
         self.assertEqual((verdict, rules), ("block", ["signature-break"]))
         self.assertEqual(together, "block")                 # the Team suite's check, too
+        self.assertEqual(len(half_typed), 1)
+        self.assertIn("m.py:1", half_typed[0])
+
+    def test_the_browser_bundle_is_python_only(self):
+        # engine.js carries no other language's frontend (polyglot.js does, loaded only when a
+        # repository has such files): a C change is skipped, and the report says so
+        bundle = value(self.files[build_site.DATA / "engine.js"])
+        self.assertEqual(sorted(p for p in bundle["files"] if "/polyglot/" in p),
+                         sorted(f"magellan_lite/{p}" for p in build_site.PY2_READER))
+        _, (verdict, errors) = run_bundles([bundle], (
+            "from magellan_lite.web import check_with_map\n"
+            "before, after = json.loads(sys.argv[2])\n"
+            "r = check_with_map(before, after)\n"
+            "print(json.dumps([r['verdict'], r['errors']]))"), json.dumps(C_CHANGE))
+        self.assertEqual(verdict, "ok")
+        self.assertIn("C files skipped", " ".join(errors))
+
+    def test_the_other_languages_bundle_holds_the_rest_of_the_frontends(self):
+        engine = value(self.files[build_site.DATA / "engine.js"])["files"]
+        others = value(self.files[build_site.DATA / "polyglot.js"])["files"]
+        self.assertFalse(set(engine) & set(others))
+        pkg = ROOT / "magellan_lite" / "polyglot"
+        vendored = {p.relative_to(ROOT).as_posix() for p in pkg.rglob("*")
+                    if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"}
+        self.assertEqual({p for p in set(engine) | set(others) if "/polyglot/" in p}, vendored)
+        # with the data files the frontends read (pyproject.toml's package-data)
+        self.assertIn("magellan_lite/polyglot/typescript/ts_extract.js", others)
+        self.assertIn("magellan_lite/polyglot/cpp/legacy_include/iostream.h", others)
+
+    def test_the_browser_bundles_catch_a_c_change(self):
+        # the Team suite's worker on a repository with C files: engine.js, then polyglot.js
+        bundles = [value(self.files[build_site.DATA / n]) for n in ("engine.js", "polyglot.js")]
+        tmp, (where, verdict, found, errors, member) = run_bundles(bundles, (
+            "import magellan_lite.polyglot\n"
+            "from magellan_lite.web import check_with_map, team_live\n"
+            "before, after = json.loads(sys.argv[2])\n"
+            "r = check_with_map(before, after)\n"
+            "t = team_live(before, {'ann': after})\n"
+            "print(json.dumps([magellan_lite.polyglot.__file__, r['verdict'],"
+            " [(f['rule'], f['path']) for f in r['findings']], r['errors'],"
+            " t['members'][0]['verdict']]))"), json.dumps(C_CHANGE))
+        self.assertTrue(where.startswith(tmp))
+        self.assertEqual((verdict, found, errors), ("block", [["signature-break", "load.c"]], []))
+        self.assertEqual(member, "block")                   # the Team suite's check, too
+
+    def test_the_team_suite_reads_the_files_the_engine_reads(self):
+        # site/js/github.js keeps its own copy of languages.py's suffixes: the same list
+        from magellan_lite.languages import LANGUAGE_OF
+        source = (build_site.SITE / "js" / "github.js").read_text(encoding="utf-8")
+        listed = re.search(r"const SUFFIXES = new Set\((\[.*?\])\);", source, re.S)
+        self.assertIsNotNone(listed, "github.js: const SUFFIXES = new Set([...]);")
+        self.assertEqual(sorted(json.loads(listed.group(1))), sorted(LANGUAGE_OF))
 
     def test_pages_sends_the_same_security_headers_as_the_server(self):
         from magellan_lite import security

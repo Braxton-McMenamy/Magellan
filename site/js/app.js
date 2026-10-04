@@ -79,13 +79,69 @@ document.getElementById("report-file").addEventListener("change", (e) => {
   reader.readAsText(file);
 });
 
-// TODO(starter): a "Copy" button on every code block, so a judge can copy the commands.
-//   1. Find the blocks: document.querySelectorAll("pre.code")
-//   2. For each one, make a button: const b = document.createElement("button");
-//      b.textContent = "Copy"; and put it in the block: pre.prepend(b)
-//   3. On click: navigator.clipboard.writeText(pre.innerText.replace("Copy", "").trim())
-//      then set b.textContent = "Copied!" for a second (setTimeout).
-//   4. Style it in css/style.css: `pre.code { position: relative; }` and the button
-//      `position: absolute; top: 8px; right: 8px;`.
+// Text to the clipboard: the Clipboard API where the page may use it, else the old way, through
+// a hidden text box. Resolves true when it worked. Try it's Share button uses it too.
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* refused (no permission, or the page lost focus): try the old way */ }
+  const box = document.createElement("textarea");
+  box.value = text;
+  box.setAttribute("readonly", "");
+  box.setAttribute("aria-hidden", "true");
+  box.className = "clipboard-box";
+  const was = document.activeElement;
+  document.body.append(box);
+  box.select();
+  let ok = false;
+  try { ok = document.execCommand("copy"); } catch { ok = false; }
+  box.remove();
+  if (was && was.focus) was.focus({ preventScroll: true });
+  return ok;
+}
+window.MagellanCopy = copyText;
+
+// a "Copy" button on every code block, so a judge can copy the commands. It sits beside the
+// block, not in it, so it stays in the corner when the block scrolls and is never copied.
+function addCopyButtons() {
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  document.querySelectorAll("pre.code").forEach((pre) => {
+    if (pre.parentElement.classList.contains("code-wrap")) return;
+    const wrap = document.createElement("div");
+    wrap.className = "code-wrap";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "copy-button";
+    button.textContent = "Copy";
+    const said = document.createElement("span");      // what a screen reader hears
+    said.className = "sr-only";
+    said.setAttribute("role", "status");
+    pre.before(wrap);
+    wrap.append(pre, button, said);
+    let timer = 0;
+    button.addEventListener("click", async () => {
+      const ok = await copyText(pre.textContent.trim());
+      if (!ok) {                                       // no clipboard: select it for Ctrl+C
+        const range = document.createRange();
+        range.selectNodeContents(pre);
+        getSelection().removeAllRanges();
+        getSelection().addRange(range);
+      }
+      button.textContent = ok ? "Copied" : `Press ${mac ? "⌘" : "Ctrl+"}C`;
+      button.classList.toggle("done", ok);
+      said.textContent = ok ? "Copied to the clipboard." : "Selected: copy it with the keyboard.";
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        button.textContent = "Copy";
+        button.classList.remove("done");
+        said.textContent = "";
+      }, ok ? 1600 : 4000);
+    });
+  });
+}
 
 renderIncidents();
+addCopyButtons();

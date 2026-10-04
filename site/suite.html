@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Team suite · Magellan Lite</title>
   <meta name="description" content="Everyone's work in progress, checked together, before anyone merges.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="favicon.png" type="image/png" sizes="64x64">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/live.css">
   <link rel="stylesheet" href="css/map.css">
@@ -89,6 +91,22 @@
       </div>
 
       <div role="tabpanel" id="panel-team" aria-labelledby="tab-team">
+        <div class="map-head">
+          <h3 id="map-title">The project</h3>
+          <div class="map-tools">
+            <div class="view-switch" id="map-views" role="group" aria-label="View">
+              <button type="button" data-view="3d" aria-pressed="true" title="The whole project in 3D">3D</button>
+              <button type="button" data-view="flow" aria-pressed="false" title="The changes, hop by hop">Flow</button>
+            </div>
+            <a class="button small-button" href="scene.html#team">Open in the Scene →</a>
+          </div>
+        </div>
+        <div class="map-wrap">
+          <div id="team-map" class="map-box card"></div>
+          <aside id="team-pick" class="pick card" aria-live="polite">
+            <p class="muted small">Pick a dot to see what it is, who changed it, and what was found there.</p>
+          </aside>
+        </div>
         <div id="team-empty" class="card empty" hidden>
           <h3>Nobody has shared work yet</h3>
           <p>When someone runs <code>magellan-lite share</code> (or saves with Share On Save turned
@@ -101,16 +119,6 @@
           <p class="muted small">Problems only the two changes together have: neither person's own check shows them.</p>
           <div id="pairs" class="pairs"></div>
           <div id="overlap"></div>
-          <div class="map-head">
-            <h3>Everyone at once</h3>
-            <a class="button small-button" href="scene.html#team">Open in the Scene →</a>
-          </div>
-          <div class="map-wrap">
-            <div id="team-map" class="map-box card"></div>
-            <aside id="team-pick" class="pick card" aria-live="polite">
-              <p class="muted small">Pick a dot to see what it is, who changed it, and what was found there.</p>
-            </aside>
-          </div>
         </div>
       </div>
 
@@ -132,6 +140,8 @@
 
   <script src="js/dom.js"></script>
   <script src="js/map.js"></script>
+  <script src="js/graph3d.js"></script>
+  <script src="js/scene3d.js"></script>
   <script src="js/github.js"></script>
   <script src="js/teamfeed.js"></script>
   <script src="js/suite.js"></script>

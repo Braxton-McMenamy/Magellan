@@ -72,12 +72,56 @@ test("a token is checked for shape before it goes anywhere", () => {
   assert.throws(() => new gh.Repo({ owner: "a", repo: "b" }, "not a token!"), /doesn't look like/);
 });
 
-test("the project's files are the engine's: .py, outside tool and environment folders", () => {
+test("the project's files are the engine's: Python and the other languages, outside tool and environment folders", () => {
   const { gh } = load(() => null);
-  assert.ok(gh.projectFile("pkg/mod.py"));
-  for (const p of ["README.md", ".venv/x.py", "a/__pycache__/m.py", "node_modules/x.py", "a/.git/x.py"]) {
+  for (const p of ["pkg/mod.py", "src/parse.c", "include/parse.h", "geo/Shape.java", "lib/solve.f90",
+                   "old/MAIN.F", "batch/PAYROLL.CBL", "copy/REC.cpy", "web/app.ts", "web/x.min.js",
+                   "core/a.cpp", "core/a.hpp", ".eslintrc.js"]) {
+    assert.ok(gh.projectFile(p), p);
+  }
+  for (const p of ["README.md", "Makefile", "data.json", "notes.txt", "a.pyc", "a.C++x", "c",
+                   ".venv/x.py", "a/__pycache__/m.py", "node_modules/x.js", "a/.git/x.c",
+                   "build/gen.c", "dist/bundle.js", "x.py/README", "dir.c/notes"]) {
     assert.ok(!gh.projectFile(p), p);
   }
+  assert.ok(gh.SUFFIXES.has(".java") && gh.SUFFIXES.has(".cbl") && !gh.SUFFIXES.has(".py"));
+});
+
+test("another language's file too big for the browser is left out and listed; the rest is read", async () => {
+  const big = "x".repeat(600_000);
+  const { gh, calls } = load((url) => {
+    if (url === `${API}/git/trees/${MAIN}?recursive=1`) {
+      return [200, { truncated: false, tree: [
+        { path: "app/m.py", type: "blob", sha: "1".repeat(40), size: 20 },
+        { path: "app/u.py", type: "blob", sha: "2".repeat(40), size: 20 },
+        { path: "site/data/bundle.js", type: "blob", sha: "6".repeat(40), size: big.length },
+        { path: "native/parse.c", type: "blob", sha: "7".repeat(40), size: 30 },
+      ] }];
+    }
+    if (url.endsWith(`/${MAIN}/native/parse.c`)) return [200, "int parse(int x) { return x; }\n"];
+    if (url.endsWith(`/${ALICE}/site/data/bundle.js`)) return [200, big];
+    if (url === `${API}/compare/${MAIN}...${ALICE}`) {
+      return [200, { files: [{ filename: "app/new.py", status: "added", sha: "5".repeat(40) },
+                             { filename: "site/data/bundle.js", status: "modified", sha: "8".repeat(40) }],
+                     commits: [{ commit: { committer: { date: "2026-10-04T12:00:00Z" } } }] }];
+    }
+    return github(url);
+  });
+  const got = await new gh.Repo({ owner: "team", repo: "demo" }, "").refresh(true);
+  assert.deepEqual(Object.keys(got.base).sort(), ["app/m.py", "app/u.py", "native/parse.c"]);
+  assert.deepEqual(Object.keys(got.works.alice).sort(), ["app/m.py", "app/new.py", "app/u.py", "native/parse.c"]);
+  assert.deepEqual(JSON.parse(JSON.stringify(got.skipped)), ["site/data/bundle.js"]);
+  assert.ok(!calls.some((c) => c.url.endsWith(`/${MAIN}/site/data/bundle.js`)), "never downloaded from the base");
+
+  // a Python file that size still stops the check: past it, the command line is the tool
+  const { gh: gh2 } = load((url) => {
+    if (url === `${API}/compare/${MAIN}...${ALICE}`) {
+      return [200, { files: [{ filename: "app/huge.py", status: "added", sha: "9".repeat(40) }], commits: [] }];
+    }
+    if (url.endsWith(`/${ALICE}/app/huge.py`)) return [200, big];
+    return github(url);
+  });
+  await assert.rejects(new gh2.Repo({ owner: "team", repo: "demo" }, "").refresh(true), /too big for the browser/);
 });
 
 test("reading the team: the base, each person's work, and a quiet look costs one request", async () => {

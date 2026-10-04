@@ -75,7 +75,11 @@
 .fix { color: var(--muted); font-size: .92rem; margin-top: 2px; }
 .overlap { margin-bottom: 22px; }
 .overlap ul { margin: 8px 0; }
-.map-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.map-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.map-head h3 { margin: 0; }
+.map-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#team-map.is-3d { padding: 0; overflow: hidden; --scene3d-h: 540px; }
+.map-wrap { margin-bottom: 22px; }
 .map-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 12px; align-items: start; }
 .map-box.card { padding: 10px; overflow-x: auto; }
 .pick { padding: 14px 16px; font-size: .95rem; position: sticky; top: 70px; }
@@ -143,3 +147,19 @@ body.scene-page { background: var(--stage-bg); color: var(--stage-text); min-hei
   .scene-rail { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--stage-border); }
   .scene-main { padding: 14px 12px; }
 }
+.scene-stage:has(.scene3d) { padding: 0; }
+.scene-stage .scene3d { --scene3d-h: max(420px, calc(100vh - 210px)); border-radius: var(--radius); }
+.scene-side .muted-id { font-family: var(--mono); font-size: .78rem; overflow-wrap: anywhere; opacity: .7; }
+.dead-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 2px; }
+.dead-list button {
+  display: grid; gap: 1px; width: 100%; text-align: left; font: inherit; cursor: pointer;
+  background: none; border: 0; border-radius: 6px; padding: 5px 8px; color: var(--stage-text);
+}
+.dead-list button:hover, .dead-list button:focus-visible { background: var(--stage-surface); outline: none; }
+.dead-name { color: #c9b6ff; font-weight: 600; overflow-wrap: anywhere; }
+.dead-list .where { overflow-wrap: anywhere; font-size: .8rem; }
+.follow-btn {
+  font: 600 .88rem var(--font); cursor: pointer; border-radius: 999px; padding: 5px 14px;
+  background: #f2a93b; color: #111; border: 0;
+}
+.follow-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }

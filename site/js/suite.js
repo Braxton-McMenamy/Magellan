@@ -10,6 +10,7 @@
   const RANK = { block: 0, review: 1, ok: 2 };
 
   let feed = null, result = null, people = {};
+  let mapMode = "3d", mapView = null;       // the project map: 3D (the whole project) or Flow
 
   // -- connecting ------------------------------------------------------------------------------
   function showError(text) {
@@ -98,12 +99,12 @@
     const took = r.ms === undefined ? "" : ` · checked in ${r.ms < 1000 ? `${r.ms} ms` : `${(r.ms / 1000).toFixed(1)} s`}, in this browser`;
     status(`Updated ${new Date(r.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}${took}`);
     fillMe();
+    if (!$("panel-team").hidden) drawTeamMap();
     if (none) return drawYou();
     drawSummary();
     drawPeople();
     drawPairs();
     drawOverlap();
-    if (!$("panel-team").hidden) drawTeamMap();
     if (!$("panel-you").hidden) drawYou();
   }
 
@@ -184,18 +185,32 @@
       node.finding && here.length ? h("ul", { class: "findings" }, here.slice(0, 3).map(finding)) : null);
   }
 
+  // The project map: the whole project in 3D from the moment a repository is connected, each
+  // person's changes in their colour once they share; or the changes as a flow, hop by hop.
   function drawTeamMap() {
     if (!result || !result.team) return;
     const box = $("team-map");
-    MagellanMap.render(box, result.team.map, {
-      people, animate: false, label: "Everyone's changes at once, and what they reach",
+    const sharing = result.people.length;
+    $("map-title").textContent = sharing ? "Everyone at once" : "The project";
+    $("map-views").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === mapMode)));
+    box.classList.toggle("is-3d", mapMode === "3d");
+    if (mapView && mapView.destroy) mapView.destroy();
+    const opts = {
+      people: sharing ? people : null, animate: false,
+      label: sharing ? "Everyone's changes at once, and what they reach" : "The whole project",
       onPick: (n, g) => {
         box.querySelectorAll(".picked").forEach((x) => x.classList.remove("picked"));
-        g.classList.add("picked");
+        if (g) g.classList.add("picked");
         pickPanel($("team-pick"), n, result.team);
       },
-    });
+    };
+    mapView = mapMode === "3d" ? MagellanScene3D.render(box, result.team.map, opts)
+      : MagellanMap.render(box, result.team.map, opts);
   }
+  $("map-views").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+    mapMode = b.dataset.view;
+    drawTeamMap();
+  }));
 
   // -- you -------------------------------------------------------------------------------------------
   function fillMe() {
@@ -252,6 +267,6 @@
   let resized = null;
   addEventListener("resize", () => {
     clearTimeout(resized);
-    resized = setTimeout(() => result && result.team && (!$("panel-team").hidden ? drawTeamMap() : drawYou()), 200);
+    resized = setTimeout(() => result && result.team && (!$("panel-team").hidden ? (mapMode === "flow" && drawTeamMap()) : drawYou()), 200);
   });
 })();

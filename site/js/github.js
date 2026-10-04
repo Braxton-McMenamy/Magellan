@@ -19,6 +19,14 @@ window.MagellanGitHub = (() => {
   // how much the browser takes on: past these, `magellan-lite team` on the command line is the tool
   const LIMITS = { members: 8, files: 400, bytes: 6_000_000, file: 500_000 };
   const SKIP = new Set(["__pycache__", "venv", "env", "build", "dist", "node_modules", "site-packages"]);
+  // the other languages' files, by suffix: magellan_lite/languages.py LANGUAGE_OF (C, C++, Java,
+  // Fortran, COBOL, TypeScript/JavaScript; tests/test_site.py keeps the two lists the same)
+  const SUFFIXES = new Set([".java", ".f", ".for", ".f77", ".ftn", ".fpp", ".f90", ".f95",
+    ".f03", ".f08", ".f18", ".f23", ".F", ".FOR", ".F77", ".FTN", ".FPP", ".F90", ".F95", ".F03",
+    ".F08", ".F18", ".F23", ".inc", ".INC", ".fi", ".fh", ".cpp", ".cc", ".cxx", ".c++", ".hpp",
+    ".hh", ".hxx", ".h++", ".ipp", ".tpp", ".c", ".h", ".cbl", ".cob", ".cpy", ".cobol", ".dcl",
+    ".CBL", ".COB", ".CPY", ".COBOL", ".DCL", ".Cbl", ".Cpy", ".ts", ".tsx", ".mts", ".cts", ".js",
+    ".jsx", ".mjs", ".cjs"]);
   const REFRESH_BASE_MS = 5 * 60_000;   // look at the default branch again at least this often
 
   // "owner/repo", "https://github.com/owner/repo", "...repo.git" -> { owner, repo } or null
@@ -33,14 +41,20 @@ window.MagellanGitHub = (() => {
   const tokenOk = (t) => /^[A-Za-z0-9_]{20,255}$/.test(t);
   // a name under refs/wip/: what `magellan-lite share` writes (lower case, digits, dashes)
   const nameOk = (n) => /^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/.test(n);
-  // the same files the engine reads from a disk (magellan_lite/source.py)
-  const projectFile = (path) => path.endsWith(".py") &&
+  // the same files the engine reads from a disk (magellan_lite/source.py): Python and the other
+  // languages' sources, outside tool, environment and hidden folders
+  const python = (path) => path.endsWith(".py");
+  const projectFile = (path) => (python(path) || SUFFIXES.has(path.slice(path.lastIndexOf(".")))) &&
     !path.split("/").slice(0, -1).some((d) => SKIP.has(d) || d.startsWith("."));
   const encPath = (p) => p.split("/").map(encodeURIComponent).join("/");
 
   class GitHubError extends Error {
     constructor(message, status = 0) { super(message); this.status = status; }
   }
+  class TooBig extends GitHubError {}
+  // another language's file too big for the browser (a generated bundle, a data table): left
+  // out of the check and listed, where a Python file that size stops it, as before
+  const leaveOut = (path, size) => !python(path) && size > LIMITS.file;
 
   // run fn over items, `width` at a time
   async function pool(items, width, fn) {
@@ -112,7 +126,7 @@ window.MagellanGitHub = (() => {
       let text;
       if (this.info.private) {
         const b = await this.api(`/git/blobs/${sha}`);
-        if (b.size > LIMITS.file) throw new GitHubError(`${path} is too big for the browser.`);
+        if (b.size > LIMITS.file) throw new TooBig(`${path} is too big for the browser.`);
         const bytes = Uint8Array.from(atob(b.content.replace(/\s/g, "")), (c) => c.charCodeAt(0));
         text = new TextDecoder("utf-8").decode(bytes);
       } else {
@@ -125,7 +139,7 @@ window.MagellanGitHub = (() => {
         }
         if (!r.ok) throw new GitHubError(`Couldn't download ${path} (${r.status}).`, r.status);
         text = await r.text();
-        if (text.length > LIMITS.file) throw new GitHubError(`${path} is too big for the browser.`);
+        if (text.length > LIMITS.file) throw new TooBig(`${path} is too big for the browser.`);
       }
       this.blobs.set(sha, text);
       return text;
@@ -134,14 +148,16 @@ window.MagellanGitHub = (() => {
     async loadBase(sha) {
       const tree = await this.api(`/git/trees/${sha}?recursive=1`);       // a sha: never changes
       if (tree.truncated) throw new GitHubError("This repository is too big to read in the browser: use `magellan-lite team`.");
-      const entries = tree.tree.filter((e) => e.type === "blob" && projectFile(e.path));
+      const all = tree.tree.filter((e) => e.type === "blob" && projectFile(e.path));
+      const entries = all.filter((e) => !leaveOut(e.path, e.size || 0));
+      const skipped = all.filter((e) => leaveOut(e.path, e.size || 0)).map((e) => e.path);
       const bytes = entries.reduce((n, e) => n + (e.size || 0), 0);
       if (entries.length > LIMITS.files || bytes > LIMITS.bytes) {
-        throw new GitHubError(`${entries.length} Python files (${Math.round(bytes / 1e6)} MB) is more than the browser should take on: use \`magellan-lite team\`.`);
+        throw new GitHubError(`${entries.length} source files (${Math.round(bytes / 1e6)} MB) is more than the browser should take on: use \`magellan-lite team\`.`);
       }
       const files = {};
       await pool(entries, 8, async (e) => { files[e.path] = await this.blob(e.path, e.sha, sha); });
-      this.base = { sha, files, at: Date.now() };
+      this.base = { sha, files, skipped, at: Date.now() };
     }
 
     // what one person's shared work changed against the default branch, as { path: text | null }
@@ -149,19 +165,25 @@ window.MagellanGitHub = (() => {
       const cmp = await this.api(`/compare/${this.base.sha}...${sha}`);   // both shas: never changes
       const files = (cmp.files || []).filter((f) => projectFile(f.filename) ||
         (f.previous_filename && projectFile(f.previous_filename)));
-      const changes = {};
+      const changes = {}, skipped = [];
       await pool(files, 6, async (f) => {
         if (f.previous_filename && projectFile(f.previous_filename)) changes[f.previous_filename] = null;
         if (!projectFile(f.filename)) return;
-        changes[f.filename] = f.status === "removed" ? null : await this.blob(f.filename, f.sha, sha);
+        try {
+          changes[f.filename] = f.status === "removed" ? null : await this.blob(f.filename, f.sha, sha);
+        } catch (err) {
+          if (!(err instanceof TooBig) || python(f.filename)) throw err;
+          skipped.push(f.filename);
+        }
       });
       const last = (cmp.commits || []).at(-1);
       const when = last ? Date.parse(last.commit.committer.date) : 0;
-      return { sha, base: this.base.sha, changes, when, many: (cmp.files || []).length >= 300 };
+      return { sha, base: this.base.sha, changes, skipped, when, many: (cmp.files || []).length >= 300 };
     }
 
     // Look again. Returns null when nothing moved since the last look, else
-    // { base: {path: text}, works: {name: {path: text}}, people: [{name, when, files, many}] }
+    // { base: {path: text}, works: {name: {path: text}}, people: [{name, when, files, many}],
+    //   skipped: [paths too big for the browser, left out] }
     async refresh(force = false) {
       if (!this.info) await this.connect();
       const refs = await this.api("/git/matching-refs/wip", "no-cache");
@@ -187,7 +209,8 @@ window.MagellanGitHub = (() => {
       }
       this.works = works;
 
-      const out = { base: this.base.files, works: {}, people: [] };
+      const out = { base: this.base.files, works: {}, people: [],
+        skipped: [...new Set([...this.base.skipped, ...[...works.values()].flatMap((w) => w.skipped)])].sort() };
       for (const [name, w] of works) {
         const files = { ...this.base.files };
         for (const [path, text] of Object.entries(w.changes)) {
@@ -201,5 +224,5 @@ window.MagellanGitHub = (() => {
     }
   }
 
-  return { parseRepo, tokenOk, projectFile, Repo, GitHubError, LIMITS };
+  return { parseRepo, tokenOk, projectFile, Repo, GitHubError, LIMITS, SUFFIXES };
 })();
