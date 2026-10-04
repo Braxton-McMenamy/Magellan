@@ -8,6 +8,34 @@
   "args": [
     "--closed-world"
   ],
+  "date": "July 2, 2019",
+  "feature": "2-new-xss-rule",
+  "show": [
+    "waf/rules.py"
+  ],
+  "damage": [
+    {
+      "value": 27,
+      "suffix": " min",
+      "label": "of global outage: Cloudflare's proxy, CDN and WAF down (13:42 to 14:09 UTC)"
+    },
+    {
+      "value": 80,
+      "suffix": "%",
+      "label": "of Cloudflare's traffic lost at the worst point"
+    },
+    {
+      "text": "~100%",
+      "label": "CPU on the servers handling HTTP and HTTPS traffic"
+    }
+  ],
+  "catch": {
+    "rule": "regex-catastrophic-backtracking",
+    "path": "waf/rules.py",
+    "line": 11,
+    "says": "The new pattern ends in .*(?:.*=.*): three unbounded parts that can match the same characters, so on a long request the regex engine tries a super-linear number of ways to split it.",
+    "fix": "Drop the redundant .* parts or bound them, and time the pattern on long inputs before it ships."
+  },
   "steps": [
     {
       "dir": "1-managed-rules",

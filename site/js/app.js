@@ -57,8 +57,11 @@ function renderReport(report) {
       ${esc(f.path)}:${f.line}<br>${esc(f.message)}
       ${f.fix ? `<br><span class="muted">fix: ${esc(f.fix)}</span>` : ""}</li>`).join("")}</ul>`
       : `<p class="muted">Nothing to check in what this change touched.</p>`}
-    ${(report.errors || []).length ? `<p class="muted small">Not checked: ${esc(report.errors.join("; "))}</p>` : ""}`;
-  // TODO(site): when report.affected is filled, list (or draw) the blast radius here too.
+    ${(report.errors || []).length ? `<p class="muted small">Not checked: ${esc(report.errors.join("; "))}</p>` : ""}
+    ${(report.affected || []).length ? `<p class="muted small">Reaches ${report.affected.length} definition(s) the change did not touch:</p><div class="map-box"></div>` : ""}`;
+  const box = view.querySelector(".map-box");
+  // a report from the command line has no map: MagellanMap draws the change and what it reaches
+  if (box && window.MagellanMap) MagellanMap.render(box, report.map || MagellanMap.fromReport(report)).play();
 }
 
 document.getElementById("report-file").addEventListener("change", (e) => {

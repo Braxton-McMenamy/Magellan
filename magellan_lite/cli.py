@@ -36,6 +36,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("rules", help="list the checklist rules")
 
+    s = sub.add_parser("serve", help="the website and its live API on this computer")
+    s.add_argument("--host", default="127.0.0.1",
+                   help="127.0.0.1 (default) is this computer only; 0.0.0.0 lets other "
+                        "machines on the network (or a Tailscale tailnet) reach it")
+    s.add_argument("--port", type=int, default=8000)
+    s.add_argument("--open", action="store_true", help="open the website in the browser")
+
     # TODO(qol): `--format markdown`: the checklist as a GitHub task list (`- [ ] **HIGH** ...`)
     #   to paste into a PR. Write it in output.py next to text(). Done when a test checks that
     #   every finding becomes one `- [ ]` line.
@@ -63,6 +70,15 @@ def main(argv: list[str] | None = None) -> int:
             kind = "file" if r.per_file else "change"
             print(f"{r.id:<34} {r.severity:<8} {kind:<6} {'blocking' if r.blocking else ''}")
         return 0
+
+    if args.command == "serve":
+        from magellan_lite.server import serve
+        try:
+            return serve(args.host, args.port, args.open)
+        except OSError as exc:                       # the port is taken, usually
+            print(f"magellan-lite: cannot listen on {args.host}:{args.port}: {exc}",
+                  file=sys.stderr)
+            return 2
 
     from magellan_lite.engine import check
     from magellan_lite.output import text

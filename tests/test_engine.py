@@ -53,6 +53,19 @@ class Check(unittest.TestCase):
             r = new.check(against=str(old.root))
             self.assertEqual([(c.name, c.kind) for c in r.changes], [("m.f", "signature")])
 
+    def test_every_kind_of_change_reads_as_json(self):
+        # a deleted definition has no "after" and a new one no "before": to_dict copes with both
+        with Project() as old, Project() as new:
+            old.write({"m.py": "X = 1\n\n\ndef gone():\n    return 1\n\n\ndef f(x):\n    return x\n"})
+            new.write({"m.py": "X = 2\n\n\ndef fresh():\n    return 2\n\n\n"
+                               "def f(x, y):\n    return x\n"})
+            report = json.loads(json.dumps(new.check(against=str(old.root)).to_dict()))
+            detail = {c["kind"]: c["detail"] for c in report["changes"]}
+            self.assertEqual(detail["removed"], "function deleted")
+            self.assertEqual(detail["added"], "new function")
+            self.assertIn("->", detail["signature"])
+            self.assertIn("->", detail["value"])
+
     def test_a_project_in_a_subdirectory_of_the_repository(self):
         with Project() as p:
             p.commit({"svc/app/pay.py": "def f():\n    return 1\n", "other/x.py": "Y = 1\n"})

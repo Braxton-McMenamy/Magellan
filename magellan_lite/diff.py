@@ -26,9 +26,14 @@ class Change:
             return f"{self.before.signature}  ->  {self.after.signature}"
         if self.kind == "value":
             return f"{self.before.value}  ->  {self.after.value}"
-        return {"removed": f"{self.before.kind} deleted", "added": f"new {self.after.kind}",
-                "renamed": f"renamed from {self.before.name}",
-                "body": f"{self.after.kind} body changed"}[self.kind]
+        # one branch at a time: a removed change has no `after`, an added one no `before`
+        if self.kind == "removed":
+            return f"{self.before.kind} deleted"
+        if self.kind == "added":
+            return f"new {self.after.kind}"
+        if self.kind == "renamed":
+            return f"renamed from {self.before.name}"
+        return f"{self.after.kind} body changed"
 
     def to_dict(self) -> dict:
         return {"kind": self.kind, "name": self.name, "path": self.path, "line": self.line,
