@@ -122,11 +122,32 @@ each with `where` as path:line, what, why and a fix), `reaches` (the blast radiu
 at `--limit` (8) and `omitted` says how much was cut. `--format text` is the terminal version;
 it exits like `check`. The shape is in `magellan_lite/brief.py`.
 
+**Plan, progress, done.** For a change that reaches many places (a new parameter, a wider
+field in a copybook), an agent can ask for the whole job before touching anything:
+
+```sh
+magellan-lite plan . --edit fort/interest.f "INTRST(PRIN, RATE, DAYS, OUT)" "INTRST(PRIN, RATE, DAYS, OUT, BASIS)"
+magellan-lite progress .     # after each batch of edits: what is left
+magellan-lite done .         # exit 0 when nothing is: each changed line, what to recompile
+```
+
+`plan` makes the intended edit in memory, checks it against the last commit and returns the
+worklist: every other place to change with its code as written (a call over continuation
+lines comes whole, a call inside an INCLUDE file points at that file once, a field a MOVE
+would truncate points at its PIC), the programs to recompile, the uses that need nothing,
+and the mentions of the same name that are not uses (comments, local arrays, a look-alike
+routine, another copybook's field of the same name), each with why. On a 455-file Fortran
+and COBOL batch it lists all 39 places in about 8 seconds. The plan is kept in `.git`, never
+in the working tree. The shape is in `magellan_lite/plan.py`.
+
 **The MCP server.** `magellan-lite mcp` offers the tools over the Model Context Protocol
 (stdin and stdout, standard library only):
 
 | Tool | When an agent calls it |
 |---|---|
+| `magellan_lite_plan` | before a change that reaches many places: the edit it intends, and back every other place to change |
+| `magellan_lite_progress` | after each batch of edits: what is left of the plan |
+| `magellan_lite_done` | at the end: nothing left? each changed line and what to recompile |
 | `magellan_lite_brief` | after editing, before committing: the brief above |
 | `magellan_lite_check` | for everything the brief cut: the full report, optionally with the code map |
 | `magellan_lite_reach` | before changing a function, class or constant: its callers and theirs, hop by hop, with files and tests |
