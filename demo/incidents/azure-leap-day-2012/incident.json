@@ -8,6 +8,30 @@
   "args": [
     "--closed-world"
   ],
+  "date": "February 29, 2012",
+  "feature": "2-same-date-next-year",
+  "show": [
+    "fabric/certs.py"
+  ],
+  "damage": [
+    {
+      "value": 34,
+      "suffix": " hours",
+      "label": "until Microsoft declared every service healthy again (Feb 28, 4:00 PM to Mar 1, 2:15 AM PST)"
+    },
+    {
+      "value": 33,
+      "suffix": "%",
+      "label": "off the month's bill for every Compute, Access Control, Service Bus and Caching customer, affected or not"
+    }
+  ],
+  "catch": {
+    "rule": "leap-day-date",
+    "path": "fabric/certs.py",
+    "line": 9,
+    "says": "now.replace(year=now.year + 1) raises ValueError on February 29: next year has no February 29, so no certificate can be made that day.",
+    "fix": "Add 365 days instead, or use February 28 when today is February 29."
+  },
   "steps": [
     {
       "dir": "1-valid-for-365-days",

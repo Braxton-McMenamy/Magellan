@@ -8,7 +8,6 @@ from pathlib import Path
 from magellan_lite.defs import Definition, definitions
 from magellan_lite.diff import Change, Spans, changed_spans, diff, in_spans
 from magellan_lite.findings import Finding, iter_change_rules, run_file_rules
-from magellan_lite.git import snapshot_at
 from magellan_lite.graph import CallGraph, build_graph
 from magellan_lite.radius import blast_radius
 from magellan_lite.report import Report
@@ -31,6 +30,7 @@ class ChangeContext:
 def load_before(root: Path, against: str) -> Snapshot:
     """``git:REV`` (``git:`` alone means HEAD), or a directory holding the old version."""
     if against.startswith("git:"):
+        from magellan_lite.git import snapshot_at   # only here: the website's copy has no git
         return snapshot_at(root, against[4:] or "HEAD")
     old = Path(against)
     if old.is_dir():
@@ -39,10 +39,21 @@ def load_before(root: Path, against: str) -> Snapshot:
 
 
 def check(root: str | Path = ".", against: str = "git:HEAD") -> Report:
+    """Compare a project on disk with a baseline (``git:REV`` or a directory)."""
+    root = Path(root).resolve()
+    return check_snapshots(load_before(root, against), working_tree(root), root, against)
+
+
+def check_files(before: dict[str, str], after: dict[str, str]) -> Report:
+    """Compare two versions given as ``{relative path: source}``: no disk, no git.
+    What the local server uses for code pasted into the website."""
+    return check_snapshots(Snapshot(dict(before), "before"), Snapshot(dict(after), "after"),
+                           Path("."), "request")
+
+
+def check_snapshots(before: Snapshot, after: Snapshot, root: Path, against: str) -> Report:
     import magellan_lite.rules  # noqa: F401  importing the package registers every rule
 
-    root = Path(root).resolve()
-    before, after = load_before(root, against), working_tree(root)
     before_defs, after_defs = definitions(before), definitions(after)
     changes = diff(before_defs, after_defs)
     spans = changed_spans(changes)

@@ -6,6 +6,8 @@
   <title>Magellan Lite</title>
   <meta name="description" content="Know what your change breaks before you commit it.">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/live.css">
+  <script>document.documentElement.classList.add("js");</script>
   <!-- TODO(starter): a favicon (the little icon in the browser tab). Make a 64x64 PNG or an
        SVG of the ◆ logo, save it as site/favicon.svg (or .png), and add here:
        <link rel="icon" href="favicon.svg"> -->
@@ -15,43 +17,42 @@
     <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">◆</span> Magellan Lite</a>
     <nav aria-label="Sections">
       <a href="#how">How it works</a>
-      <a href="#incidents">Incidents</a>
+      <a href="#incidents">Failures</a>
+      <a href="#checklist">Checklist</a>
       <a href="#try">Try it</a>
       <a href="#team">Team</a>
     </nav>
   </header>
 
   <main id="top">
-    <section class="hero">
-      <div class="hero-text">
-        <p class="eyebrow">A pre-commit check for Python</p>
-        <h1>Know what your change breaks <em>before</em> you commit it.</h1>
-        <p class="lede">Magellan Lite maps your code from its syntax trees, finds exactly what a
-          change touched, and runs a checklist built from real software disasters. One verdict:
-          <span class="verdict ok">ok</span> <span class="verdict review">review</span>
-          <span class="verdict block">block</span>.</p>
-        <div class="cta">
-          <a class="button primary" href="#incidents">See it catch real failures</a>
-          <a class="button" href="#try">Run it on your code</a>
+    <div class="hero-wrap">
+      <canvas id="hero-canvas" class="hero-canvas" aria-hidden="true"></canvas>
+      <section class="hero">
+        <div class="hero-text">
+          <p class="eyebrow">A pre-commit check for Python</p>
+          <h1>Know what your change breaks <em>before</em> you commit it.</h1>
+          <p class="lede">Magellan Lite maps your code from its syntax trees, finds exactly what a
+            change touched, follows it to every caller it can break, and runs a checklist built
+            from real software disasters. One verdict:
+            <span class="verdict ok">ok</span> <span class="verdict review">review</span>
+            <span class="verdict block">block</span>.</p>
+          <div class="cta">
+            <a class="button primary" href="#incidents">Watch it replay real failures</a>
+            <a class="button" href="#try">Try it on your code</a>
+          </div>
         </div>
-      </div>
-      <!-- TODO(site): replace this static sample with a recording of the real demo
-           (Knight Capital 2005, step 2) once loop-without-progress lands. -->
-      <pre class="terminal" aria-label="Sample output"><span class="t-dim">$ magellan-lite check</span>
-<span class="t-block">magellan-lite: BLOCK</span> · 1 finding · 2 changes in 2 files
+        <div class="terminal-window">
+          <div class="terminal-bar">
+            <i></i><i></i><i></i>
+            <span>a real run: the sensor example</span>
+            <button id="hero-replay" class="terminal-replay" type="button">replay</button>
+          </div>
+          <pre class="terminal" id="hero-terminal" aria-label="A real run of magellan-lite check"><span class="t-prompt">$</span> magellan-lite check</pre>
+        </div>
+      </section>
+    </div>
 
-  changes
-    body  smars.power_peg.power_peg  smars/power_peg.py:9
-    body  smars.router.route         smars/router.py:7
-
-  checklist
-    [ ] HIGH     loop-without-progress  smars/power_peg.py:12
-        the loop at line 12 can never end
-        fix: make every path change what the
-             condition reads, or leave the loop</pre>
-    </section>
-
-    <section class="problem" aria-labelledby="problem-title">
+    <section class="problem reveal" aria-labelledby="problem-title">
       <h2 id="problem-title">The dangerous change is rarely the one you're looking at</h2>
       <div class="cards three">
         <article class="card stat">
@@ -75,7 +76,7 @@
       </div>
     </section>
 
-    <section id="how" aria-labelledby="how-title">
+    <section id="how" class="reveal" aria-labelledby="how-title">
       <h2 id="how-title">How it works</h2>
       <ol class="steps">
         <li class="card">
@@ -85,42 +86,67 @@
         </li>
         <li class="card">
           <h3><span class="num">2</span> Diff</h3>
-          <p>Compare with the last commit (or any baseline): what was added, removed, or had its
-            signature, body or value changed.</p>
+          <p>Compare with the last commit (or any baseline): what was added, removed, renamed,
+            or had its signature, body or value changed.</p>
         </li>
         <li class="card">
-          <h3><span class="num">3</span> Check</h3>
+          <h3><span class="num">3</span> Reach</h3>
+          <p>Walk the call graph backwards from each change: its callers, then theirs. Each hop
+            fades the score, so you get a ranked list of the code it can break.</p>
+        </li>
+        <li class="card">
+          <h3><span class="num">4</span> Check</h3>
           <p>Run the checklist on exactly what changed, so old problems elsewhere stay quiet.
             Each rule comes from a failure that really happened.</p>
         </li>
       </ol>
-      <!-- TODO(site): the blast-radius graph. When report.affected is filled (TODO(engine)),
-           draw the changed definition and what it reaches as rings fading with distance, the
-           worst hit pulsing. Plain SVG is enough; no library needed. -->
     </section>
 
-    <section id="incidents" aria-labelledby="incidents-title">
+    <section id="incidents" class="reveal" aria-labelledby="incidents-title">
       <div class="section-head">
-        <h2 id="incidents-title">Famous failures, replayed change by change</h2>
+        <h2 id="incidents-title">Famous failures, replayed</h2>
         <p id="incidents-summary" class="muted">Loading…</p>
       </div>
-      <div id="incident-list" class="incident-list"></div>
-      <p class="muted small">Regenerate with <code>python demo/run.py</code>. Ports of code that is
-        not public say so. Static analysis: a clean report is not proof.</p>
+      <p class="section-lede">Each failure is rebuilt as a short code history and checked by the
+        real engine. Watch what happened and what it cost, the change itself, what it reaches,
+        the issue, and whether Magellan Lite catches it.</p>
+      <div id="story" class="story"></div>
+      <details class="all-results">
+        <summary>Every change, replayed</summary>
+        <div id="incident-list" class="incident-list"></div>
+      </details>
+      <p class="muted small">Regenerate with <code>python demo/build_site.py</code>. Ports of code
+        that is not public say so. Static analysis: a clean report is not proof.</p>
     </section>
 
-    <section id="try" aria-labelledby="try-title">
+    <section id="checklist" class="reveal" aria-labelledby="checklist-title">
+      <div class="section-head">
+        <h2 id="checklist-title">The checklist</h2>
+        <p id="rule-count" class="muted"></p>
+      </div>
+      <p class="section-lede">Every rule runs only on the definitions a change touched, so old
+        problems elsewhere stay quiet. The two that block reach across files through the call
+        graph.</p>
+      <div id="rule-list" class="rule-grid"></div>
+    </section>
+
+    <section id="try" class="reveal" aria-labelledby="try-title">
       <h2 id="try-title">Try it</h2>
-      <div class="cards two">
+      <p class="section-lede">Pick an example or paste your own Python. The real engine checks
+        it, right here in your browser (or on your machine with <code>magellan-lite serve</code>).
+        Nothing is uploaded.</p>
+      <div id="tryit" class="tryit card"></div>
+      <div class="cards two below-tryit">
         <article class="card">
-          <h3>Run it</h3>
+          <h3>Run it on your project</h3>
           <pre class="code">pip install -e .
 magellan-lite check            # against your last commit
-magellan-lite check --format json &gt; report.json</pre>
+magellan-lite check --format json &gt; report.json
+magellan-lite serve --open     # this page, with a live API</pre>
         </article>
         <article class="card">
           <h3>Read a report</h3>
-          <p>Open a <code>report.json</code> to see its verdict and checklist here.</p>
+          <p>Open a <code>report.json</code> to see its verdict, checklist and map here.</p>
           <label class="file">
             <input id="report-file" type="file" accept=".json,application/json">
             <span>Choose report.json</span>
@@ -149,7 +175,14 @@ magellan-lite check --format json &gt; report.json</pre>
       static analysis: a clean report is not proof.</p>
   </footer>
 
+  <script src="data/showcase.js"></script>
   <script src="data/incidents.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/live.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/story.js"></script>
+  <script src="js/checklist.js"></script>
+  <script src="js/tryit.js"></script>
+  <script src="js/hero.js"></script>
 </body>
 </html>

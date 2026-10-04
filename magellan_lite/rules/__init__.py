@@ -37,6 +37,8 @@ from magellan_lite.rules import assert_tuple, bare_except, compare_none, debug_l
 #      Parse with `re._parser` (3.11+) / `sre_parse` (3.10), never run the regex.
 #      Turns cloudflare-waf-2019 green.
 #   Stretch: unsynchronized-shared-state (therac-25-1986) needs thread analysis: last.
+#   When one lands, run `python demo/build_site.py` and commit site/data/: the website's
+#   story for that incident turns from "rule in progress" to caught (the tests remind you).
 #
 #   The full Magellan has tested versions of 1-4 (magellan/python/rules/, magellan/rules/):
 #   read them for the edge cases, then write your own small version here.

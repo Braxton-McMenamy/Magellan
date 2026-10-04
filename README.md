@@ -11,11 +11,13 @@ pip install -e .                       # Python 3.10+, no dependencies
 magellan-lite check                    # the working tree against your last commit
 magellan-lite check --format json      # for tools and CI
 magellan-lite rules                    # the checklist
+magellan-lite serve --open             # the website and its live API on http://localhost:8000
 python demo/run.py                     # famous failures, replayed (the demo and the scoreboard)
+python demo/build_site.py              # the website's data, from the real engine (after a rule lands)
 python -m unittest discover -s tests -t .
 ```
 
-The project page is `site/index.html`: see [Website](#website).
+The project page is `site/index.html`: see [Website](#website) and [Local server and API](#local-server-and-api).
 
 ## How it works
 
@@ -59,9 +61,9 @@ Each says what to build and how you know it's done.
 |---|---|---|
 | `TODO(starter)` | new to Python's `ast` | Four small rules with numbered steps and a test waiting for each (`bare_except` → `assert_tuple` → `compare_none` → `debug_leftover`). Delete the test's `@unittest.skip` line when you're done. |
 | `TODO(qol)` | comfortable | The PR comment bot (most visible), `--format markdown`, `hook install`, settings from `pyproject.toml`, `# magellan: ignore[rule]`, colours. |
-| `TODO(checklist)` | comfortable | The famous-failure rules: `leap-day-date` (start here), `reused-value`, `loop-without-progress`, `regex-catastrophic-backtracking`. Each turns an incident in `python demo/run.py` from *waiting* to *caught*. |
+| `TODO(checklist)` | comfortable | The famous-failure rules: `leap-day-date` (start here), `reused-value`, `loop-without-progress`, `regex-catastrophic-backtracking`. Each turns an incident in `python demo/run.py` from *waiting* to *caught*; then run `python demo/build_site.py` so the website shows it. |
 | engine | Brayton | Done: the blast radius (call graph and propagation), renames, the "reaches" section, `signature-break` and `removed-still-referenced`. The sensor incident is caught. |
-| `TODO(site)` | Braxton | The website. From the Python side: show `python demo/run.py`'s results on the page (`demo/run.py`, end of `main()`). |
+| `TODO(site)` | Braxton | The website. Done: the live hero, the famous-failure player, the checklist, Try it. Next: a share link for Try it (`site/js/tryit.js`), opening the player on one incident (`site/js/story.js`). |
 
 ## Layout
 
@@ -77,26 +79,73 @@ magellan_lite/
   git.py        the project at a git revision
   engine.py     one check, start to finish
   output.py     the terminal report
+  web.py        a check plus the code map, for the website (server, browser, build)
+  server.py     magellan-lite serve: the website and its API
   cli.py        the command line
   rules/        the checklist, one file per rule
 tests/          unittest; tests/helpers.py makes throwaway git repositories
-demo/           incidents/ (famous failures as git histories) and run.py (the scoreboard)
-site/           the project page (Braxton's): plain HTML and CSS, no build step
+demo/           incidents/ (famous failures, one folder per change), run.py (the scoreboard),
+                build_site.py (writes site/data/ from the real engine)
+site/           the project page (Braxton's): plain HTML, CSS and JavaScript, no build step;
+                site/data/ is generated, never edited by hand
 ```
 
 ## Website
 
-Plain HTML and CSS in `site/`, no build step, no dependencies. Open `site/index.html` in a
-browser, or serve the folder:
+Live at <https://magellan-code.pages.dev> (Cloudflare Pages, project `magellan-code`).
+`site/` is the only copy of the page: the deploy publishes this folder from `main` as it is, so
+a change here goes live on the next deploy. Plain HTML, CSS and JavaScript, no build step.
+`index.html` stays at the top of `site/`, and every link is relative (`css/style.css`, not
+`/css/style.css`) so the page also works opened straight from disk.
 
-```sh
-python -m http.server 8000 --directory site
+What's on it, all drawn from the real engine:
+
+- **The hero** types out a real `magellan-lite check` of the sensor change.
+- **Famous failures, replayed**: an animated story per incident. What happened and what it
+  cost (every figure from a cited source in its `incident.json`), the code change, the code
+  map lighting up hop by hop as the change reaches its callers, the issue, and whether Magellan
+  Lite catches it today or the rule is still in progress.
+- **The checklist**: every rule, and the ones still being written.
+- **Try it**: edit a before and an after version and check the change for real. On the public
+  site the engine runs *in the visitor's browser*: `site/data/engine.js` is Magellan Lite's
+  own source, run by [Pyodide](https://pyodide.org) (Python compiled to WebAssembly, loaded
+  from a CDN), so nothing is uploaded. Under `magellan-lite serve` it uses the local API
+  instead, which also works offline.
+
+`site/data/` is written by `python demo/build_site.py`: the replayed incidents, the hero, the
+rules, the Try-it examples (each checked to give the verdict it promises) and the engine
+bundle. Run it after changing a rule, the engine or an incident, and commit what it writes;
+`tests/test_site.py` fails while it is out of date. To work on the page, open
+`site/index.html` in a browser, or run `magellan-lite serve` for the page and the live API on
+<http://localhost:8000>.
+
+## Local server and API
+
+`magellan-lite serve` serves `site/` and a JSON API that runs Magellan Lite for real, on
+<http://localhost:8000>. Standard library only. It listens on this computer alone unless
+started with `--host 0.0.0.0` (then the local network, or a Tailscale network, can reach it).
+Code sent to it is only parsed, never run; a request is capped at 1 MB and 200 files per side.
+API responses allow any origin, so a page opened straight from disk can call it too.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/health` | `{"ok": true, "version": "..."}` |
+| `GET /api/rules` | `[{"id", "severity", "blocking", "kind", "fix"}]` |
+| `GET /api/incidents` | the famous failures replayed now, the same data as `python demo/run.py` (`?refresh=1` to re-run after a rule changes) |
+| `POST /api/check` | body `{"before": {"path.py": "source"}, "after": {"path.py": "source"}}`; returns the report: `verdict`, `changes`, `findings`, `affected` (the blast radius), `errors` |
+
+From the website:
+
+```js
+const report = await fetch("http://localhost:8000/api/check", {
+  method: "POST",
+  headers: {"Content-Type": "application/json"},
+  body: JSON.stringify({before: {"app.py": oldCode}, after: {"app.py": newCode}}),
+}).then((r) => r.json());
+// report.verdict: "ok" | "review" | "block"; report.findings[]; report.affected[]
 ```
 
-then visit <http://localhost:8000>. It can be copied to any web server's document root. GitHub
-Pages deploys a branch only from the repository root or a `docs/` folder, so to host it there,
-either publish `site/` with a Pages workflow (`actions/upload-pages-artifact` and
-`actions/deploy-pages`) or rename the folder to `docs/`.
+Errors come back as `{"error": "..."}` with status 400 (a bad request) or 413 (too large).
 
 ## Honest limits
 

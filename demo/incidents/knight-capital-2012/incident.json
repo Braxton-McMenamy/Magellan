@@ -2,13 +2,45 @@
   "title": "Knight Capital, August 1 2012: $460 million in 45 minutes",
   "what_happened": "SMARS, Knight's order router, still contained 'Power Peg', unused since 2003. Power Peg sent child orders until a cumulative-fill counter said the parent order was filled; a 2005 change moved that counting earlier in the order flow, so Power Peg could no longer stop. In 2012 new Retail Liquidity Program (RLP) code replaced it and reused its flag. A technician did not copy the new code to one of eight servers; orders carrying the reused flag woke Power Peg up there and it sent millions of orders.",
   "sources": [
-    "SEC Release No. 34-70694, In the Matter of Knight Capital Americas LLC (2013)"
+    "SEC Release No. 34-70694, In the Matter of Knight Capital Americas LLC (2013)",
+    "SEC press release 2013-222, \"SEC Charges Knight Capital With Violations of Market Access Rule\" (October 16 2013)"
   ],
   "language": "Python port (SMARS's source and language are not public).",
   "out_of_reach": "The deployment that skipped one of eight servers is a release failure no source analysis can see; what the code shows is the loop that cannot stop and the flag handed to a new meaning.",
   "args": [
     "--closed-world"
   ],
+  "date": "August 1, 2012",
+  "feature": "2-2005-fill-tracking-moved",
+  "show": [
+    "smars/power_peg.py",
+    "smars/router.py"
+  ],
+  "damage": [
+    {
+      "value": 460,
+      "prefix": "$",
+      "suffix": "M",
+      "label": "lost: \"a loss of more than $460 million\" (SEC)"
+    },
+    {
+      "value": 45,
+      "suffix": " min",
+      "label": "the first 45 minutes after the market opened"
+    },
+    {
+      "value": 397,
+      "suffix": "M",
+      "label": "shares traded that nobody meant to trade"
+    }
+  ],
+  "catch": {
+    "rule": "loop-without-progress",
+    "path": "smars/power_peg.py",
+    "line": 11,
+    "says": "while order.filled < order.qty: nothing in the loop changes order.filled any more (the counting moved to route), so once Power Peg starts it never stops.",
+    "fix": "Count fills inside the loop again, or cap how many child orders it may send."
+  },
   "steps": [
     {
       "dir": "1-2003-power-peg-in-use",

@@ -9,6 +9,29 @@
   "args": [
     "--closed-world"
   ],
+  "date": "1985 to 1987",
+  "feature": "2-software-only",
+  "show": [
+    "therac/console.py"
+  ],
+  "damage": [
+    {
+      "value": 6,
+      "label": "known accidents: patients given massive radiation overdoses"
+    },
+    {
+      "value": 3,
+      "label": "deaths, at least"
+    }
+  ],
+  "damage_note": "The cost was human. No money figure fits it.",
+  "catch": {
+    "rule": "unsynchronized-shared-state",
+    "path": "therac/console.py",
+    "line": 14,
+    "says": "operator_edit writes self.mode and self.energy_mev on one thread while set_up_beam reads them on another, and neither takes self.lock: an edit can land halfway through setup.",
+    "fix": "Take self.lock in both methods (with self.lock:), so an edit and the setup never interleave."
+  },
   "steps": [
     {
       "dir": "1-edits-and-setup-synchronised",

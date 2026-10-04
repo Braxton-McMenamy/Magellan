@@ -2,9 +2,38 @@
   "title": "The sensor agent: a signature change breaks a file nobody touched",
   "what_happened": "A three-file change adds a required `layout` argument to parse_record and drops the legacy collection mode. Every edited file is consistent. But collector.py, which nobody touched, still calls parse_record(row) with one argument -- inside `except Exception: pass`, so the TypeError is swallowed and the sweep silently returns nothing.",
   "sources": [
-    "Magellan's worked example (examples/sensor and examples/after)"
+    "Magellan's worked example (examples/sensor and examples/after)",
+    "CrowdStrike, \"External Technical Root Cause Analysis: Channel File 291\" (August 6 2024)",
+    "Microsoft, \"Helping our customers through the CrowdStrike outage\" (July 20 2024)",
+    "Parametrix, CrowdStrike outage impact analysis of the US Fortune 500 (July 24 2024)"
   ],
   "language": "Python",
+  "feature": "2-layout-argument",
+  "show": [
+    "sensor/channel.py",
+    "sensor/collector.py"
+  ],
+  "damage": [
+    {
+      "value": 8.5,
+      "suffix": "M",
+      "label": "Windows machines crashed (Microsoft's count)"
+    },
+    {
+      "value": 5.4,
+      "prefix": "$",
+      "suffix": "B",
+      "label": "estimated direct losses for US Fortune 500 companies alone (Parametrix)"
+    }
+  ],
+  "damage_of": "CrowdStrike, July 19 2024, the real failure of this kind: the sensor's template type defined 21 input fields, but the code that called it supplied 20. An update that used the 21st made the sensor read past its input, and Windows crashed at boot.",
+  "catch": {
+    "rule": "signature-break",
+    "path": "sensor/collector.py",
+    "line": 11,
+    "says": "collect() still calls parse_record(row) with one argument; parse_record now requires layout. The TypeError is swallowed by except Exception: pass, so the sweep silently returns nothing.",
+    "fix": "Update the call, or give layout a default so existing calls keep working."
+  },
   "steps": [
     {
       "dir": "1-before",
