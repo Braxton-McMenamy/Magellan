@@ -15,3 +15,8 @@ magellan-lite = "magellan_lite.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["magellan_lite*"]
+
+# Files the language frontends read at run time; a non-editable install leaves them out otherwise.
+[tool.setuptools.package-data]
+"magellan_lite.polyglot.typescript" = ["ts_extract.js"]
+"magellan_lite.polyglot.cpp" = ["legacy_include/*.h"]
