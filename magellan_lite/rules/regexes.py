@@ -7,8 +7,9 @@ ran on every HTTP request worldwide, the CPUs serving them went to nearly 100%, 
 was down for 27 minutes.
 
 Python's ``re`` backtracks the same way. The rule reads regex literals passed to
-``re.compile``, ``re.search`` and friends with Python's own regex parser -- it never runs
-them -- and looks for the two classic shapes:
+``re.compile``, ``re.search`` and friends, or kept in a module constant first
+(``WORD = r"(a+)+$"`` then ``re.compile(WORD)``), with Python's own regex parser -- it never
+runs them -- and looks for the two classic shapes:
 
 * exponential: an unbounded repeat inside an unbounded repeat with nothing else that must
   match, ``(a+)+`` or ``(\\w+\\s?)*``: a run of the same character can be split between them in
@@ -17,7 +18,9 @@ them -- and looks for the two classic shapes:
   (Cloudflare's had four), with something after them that can fail.
 
 Only reported when something after the ambiguous part can make the match fail: if the first
-attempt always succeeds, there is nothing to backtrack over.
+attempt always succeeds, there is nothing to backtrack over. A constant is looked up only
+when the module assigns it exactly once and no function around the call has a name of its
+own that hides it; the finding then sits on the pattern, where the fix goes.
 """
 
 from __future__ import annotations
@@ -221,32 +224,113 @@ def _describe(kind: str, k: int, char: int) -> str:
             f"input's length")
 
 
+def _bound_names(stmts) -> set[str]:
+    """Names these statements bind (assign, import, define), without looking inside the
+    functions and classes they define."""
+    out: set[str] = set()
+    todo = list(stmts)
+    while todo:
+        node = todo.pop()
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            out.add(node.name)
+            continue
+        if isinstance(node, ast.Lambda):
+            continue
+        if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            out.add(node.id)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            out |= {(a.asname or a.name).split(".")[0] for a in node.names}
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            out.add(node.name)
+        todo.extend(ast.iter_child_nodes(node))
+    return out
+
+
+def _constants(tree: ast.Module) -> dict[str, ast.Constant]:
+    """Module constants holding a string, ``WORD = r"(a+)+$"``: only names the module binds
+    once and no function rebinds with ``global``."""
+    strings: dict[str, ast.Constant] = {}
+    count: dict[str, int] = {}
+    for stmt in tree.body:
+        for name in _bound_names([stmt]):
+            count[name] = count.get(name, 0) + 1
+        target = (stmt.targets[0] if isinstance(stmt, ast.Assign) and len(stmt.targets) == 1
+                  else stmt.target if isinstance(stmt, ast.AnnAssign) else None)
+        value = getattr(stmt, "value", None)
+        if (isinstance(target, ast.Name) and isinstance(value, ast.Constant)
+                and isinstance(value.value, str)):
+            strings[target.id] = value
+    rebound = {n for g in ast.walk(tree) if isinstance(g, ast.Global) for n in g.names}
+    return {n: v for n, v in strings.items() if count.get(n) == 1 and n not in rebound}
+
+
+def _local_names(fn: ast.AST) -> set[str]:
+    """Names a function (or lambda, or class body) has of its own."""
+    out: set[str] = set()
+    args = getattr(fn, "args", None)
+    if args is not None:
+        out |= {a.arg for a in [*args.posonlyargs, *args.args, *args.kwonlyargs,
+                                args.vararg, args.kwarg] if a is not None}
+    body = getattr(fn, "body", [])
+    if isinstance(body, list):
+        out |= _bound_names(body)
+    return out
+
+
+def _re_calls(node: ast.AST, hidden: frozenset = frozenset()):
+    """Every ``re.<function>(pattern, ...)`` call, with the names that the functions and
+    classes around it have of their own (they hide a module constant of the same name)."""
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
+            yield from _re_calls(child, hidden | _local_names(child))
+            continue
+        if (isinstance(child, ast.Call) and isinstance(child.func, ast.Attribute)
+                and isinstance(child.func.value, ast.Name) and child.func.value.id == "re"
+                and child.func.attr in _FUNCTIONS and child.args):
+            yield child, hidden
+        yield from _re_calls(child, hidden)
+
+
+def _problem(text: str, call: ast.Call):
+    """The worst shape in the pattern ``text`` as ``call`` compiles it, or None."""
+    flag_index = {"compile": 1, "match": 2, "search": 2, "fullmatch": 2, "findall": 2,
+                  "finditer": 2, "split": 3, "sub": 4, "subn": 4}[call.func.attr]
+    try:
+        parsed = P.parse(text, _flags(call, flag_index))
+    except Exception:                                   # noqa: BLE001 - re.compile would say
+        return None
+    pattern = _Pattern(parsed.state.flags)
+    found = sorted(pattern.problems(list(parsed)), key=lambda p: (p[0] != "exponential", -p[1]))
+    return found[0] if found else None
+
+
 @rule("regex-catastrophic-backtracking", "high",
       fix="Remove the overlap: drop redundant `.*`s, make the parts match different "
           "characters, or bound them ({0,100}); then time the pattern on a long input that "
           "does not match.")
 def regex_catastrophic_backtracking(tree: ast.Module, path: str):
-    for call in ast.walk(tree):
-        if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
-                and isinstance(call.func.value, ast.Name) and call.func.value.id == "re"
-                and call.func.attr in _FUNCTIONS and call.args):
+    constants = _constants(tree)
+    reported: set[str] = set()                          # one finding per constant
+    for call, hidden in _re_calls(tree):
+        arg, name = call.args[0], None
+        if isinstance(arg, ast.Name) and arg.id in constants and arg.id not in hidden:
+            name, literal = arg.id, constants[arg.id]
+            if name in reported:
+                continue
+        elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+            literal = arg
+        else:
             continue
-        literal = call.args[0]
-        if not (isinstance(literal, ast.Constant) and isinstance(literal.value, str)):
-            continue
-        flag_index = {"compile": 1, "match": 2, "search": 2, "fullmatch": 2, "findall": 2,
-                      "finditer": 2, "split": 3, "sub": 4, "subn": 4}[call.func.attr]
-        try:
-            parsed = P.parse(literal.value, _flags(call, flag_index))
-        except Exception:                               # noqa: BLE001 - re.compile would say
-            continue
-        pattern = _Pattern(parsed.state.flags)
-        found = sorted(pattern.problems(list(parsed)), key=lambda p: (p[0] != "exponential", -p[1]))
-        if not found:
+        problem = _problem(literal.value, call)
+        if problem is None:
             continue
         shown = literal.value if len(literal.value) <= 48 else literal.value[:45] + "..."
-        yield (literal, f"the regular expression `{shown}` can backtrack catastrophically: "
-                        f"{_describe(*found[0])}",
+        where = "" if name is None else \
+            f" kept in {name} (used by re.{call.func.attr}() on line {call.lineno})"
+        if name is not None:
+            reported.add(name)
+        yield (literal, f"the regular expression `{shown}`{where} can backtrack "
+                        f"catastrophically: {_describe(*problem)}",
                "A request that almost matches keeps the CPU busy for seconds or more. "
                "Cloudflare, 2019: one such pattern took every server's HTTP CPUs to nearly "
                "100% and the network down for 27 minutes.")

@@ -16,9 +16,10 @@ One finding per loop, for loops in code the change touched:
   says the path can be taken (``days == 366``).
 
 Precision first, because a gate people learn to ignore is worthless. Quiet for
-``while True``, conditions that call something (polling), loops that sleep, wait, await or
-yield (something else moves them on), conditions on globals when the body calls anything, and
-bodies too tangled to enumerate.
+``while True``, conditions that call something (polling; ``len(items)`` is the exception and
+reads like ``items`` itself, since only a change to ``items`` can move it), loops that sleep,
+wait, await or yield (something else moves them on), conditions on globals when the body
+calls anything, and bodies too tangled to enumerate.
 """
 
 from __future__ import annotations
@@ -47,6 +48,13 @@ def _dotted(node: ast.AST) -> str | None:
 
 def _name(func: ast.AST) -> str:
     return func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+
+
+def _sized(call: ast.Call) -> bool:
+    """``len(items)`` or ``len(self.items)``: a plain value, which only a change to
+    ``items`` can move, and the body's changes are checked for that like any other read."""
+    return (isinstance(call.func, ast.Name) and call.func.id == "len" and len(call.args) == 1
+            and not call.keywords and _dotted(call.args[0]) is not None)
 
 
 def _reads(expr: ast.AST) -> set[str]:
@@ -274,7 +282,8 @@ def _stuck(loop: ast.While, fn: _Function):
     cond = loop.test
     if isinstance(cond, ast.Constant):
         return None                                     # while True: leaves some other way
-    if any(isinstance(n, (ast.Call, ast.Await, ast.NamedExpr)) for n in ast.walk(cond)):
+    if any(isinstance(n, (ast.Await, ast.NamedExpr)) or (isinstance(n, ast.Call) and not _sized(n))
+           for n in ast.walk(cond)):
         return None                                     # polling: the call can change
     reads = _reads(cond)
     body = list(_nodes(loop.body))

@@ -44,5 +44,58 @@ class RegexBacktracking(unittest.TestCase):
         self.assertEqual(check(r"(unclosed"), [])
 
 
+RULE = "regex-catastrophic-backtracking"
+
+
+class PatternInAConstant(unittest.TestCase):
+    def test_a_constant_is_looked_up_and_reported_on_the_pattern(self):
+        [f] = found(RULE, """
+            import re
+
+            WORD = r"^(a+)+$"
+
+
+            def check(text):
+                return re.match(WORD, text)
+            """)
+        self.assertEqual(f.line, 3)                     # the pattern, where the fix goes
+        self.assertIn("kept in WORD", f.message)
+        self.assertIn("re.match() on line 7", f.message)
+        self.assertIn("exponentially", f.message)
+
+    def test_an_annotated_constant_used_twice_is_one_finding(self):
+        [f] = found(RULE, """
+            import re
+
+            XSS: str = r"(\\w+\\s?)*;"
+            STRICT = re.compile(XSS)
+            LOOSE = re.compile(XSS, re.IGNORECASE)
+            """)
+        self.assertEqual(f.line, 3)
+
+    def test_constants_it_cannot_be_sure_of_stay_quiet(self):
+        for code in [
+            # a safe pattern
+            'import re\nWORD = r"[a-z]+@[a-z]+\\.com"\nX = re.compile(WORD)\n',
+            # never handed to re
+            'import re\nWORD = r"^(a+)+$"\nX = other.compile(WORD)\n',
+            # assigned twice: which one reaches the call?
+            'import re\nWORD = r"^(a+)+$"\nWORD = r"^a+$"\nX = re.compile(WORD)\n',
+            # rebound at run time by a function
+            'import re\nWORD = r"^(a+)+$"\n\ndef reset():\n    global WORD\n    WORD = "a"\n\n'
+            'X = re.compile(WORD)\n',
+            # a parameter or a local of the same name hides the constant
+            'import re\nWORD = r"^(a+)+$"\n\ndef f(WORD, s):\n    return re.match(WORD, s)\n',
+            'import re\nWORD = r"^(a+)+$"\n\ndef f(s):\n    WORD = r"^a+$"\n'
+            '    return re.match(WORD, s)\n',
+            # imported from elsewhere: not this module's to read
+            'import re\nfrom patterns import WORD\nX = re.compile(WORD)\n',
+            # built at run time, not a literal
+            'import re\nWORD = "^(" + part + ")+$"\nX = re.compile(WORD)\n',
+        ]:
+            with self.subTest(code=code):
+                self.assertEqual(found(RULE, code), [])
+
+
 if __name__ == "__main__":
     unittest.main()
