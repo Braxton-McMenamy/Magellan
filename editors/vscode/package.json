@@ -1,25 +1,79 @@
 {
   "name": "magellan-lite",
   "displayName": "Magellan Lite",
-  "description": "Know what your change breaks before you commit it: the checklist where the damage lands, the verdict in the status bar, conflicts with your team's work in progress, and a map of what the change reaches.",
-  "version": "0.1.0",
+  "description": "Know what your change breaks before you commit it: the checklist where the damage lands, the verdict in the status bar, conflicts with your team's work in progress, and a map of what the change reaches. Python, Java, C, Fortran and COBOL. Nothing to install or set up.",
+  "version": "0.2.0",
   "publisher": "magellan-lite",
   "private": true,
+  "preview": true,
+  "pricing": "Free",
   "repository": {
     "type": "git",
     "url": "https://github.com/Braxton-McMenamy/Magellan",
     "directory": "editors/vscode"
   },
+  "homepage": "https://magellan-code.pages.dev",
+  "bugs": {
+    "url": "https://github.com/Braxton-McMenamy/Magellan/issues"
+  },
+  "qna": false,
+  "galleryBanner": {
+    "color": "#0d1520",
+    "theme": "dark"
+  },
+  "badges": [
+    {
+      "url": "https://img.shields.io/badge/GitHub-Braxton--McMenamy%2FMagellan-0d1520?logo=github",
+      "href": "https://github.com/Braxton-McMenamy/Magellan",
+      "description": "Source on GitHub"
+    },
+    {
+      "url": "https://img.shields.io/badge/website-magellan--code.pages.dev-f2a93b",
+      "href": "https://magellan-code.pages.dev",
+      "description": "The website"
+    }
+  ],
+  "keywords": [
+    "pre-commit",
+    "blast radius",
+    "impact analysis",
+    "static analysis",
+    "code review",
+    "call graph",
+    "code map",
+    "3d graph",
+    "dead code",
+    "breaking change",
+    "legacy code",
+    "modernization",
+    "team",
+    "python",
+    "python2",
+    "java",
+    "c",
+    "fortran",
+    "cobol",
+    "local"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Linters",
-    "Visualization"
+    "Visualization",
+    "Programming Languages",
+    "Other"
   ],
   "activationEvents": [
     "onLanguage:python",
+    "onLanguage:java",
+    "onLanguage:c",
+    "onLanguage:cobol",
+    "onLanguage:fortran",
+    "onLanguage:fortran-modern",
     "workspaceContains:**/*.py",
+    "workspaceContains:**/*.java",
+    "workspaceContains:**/*.{c,cbl,cob,cpy,f,f90,for}",
     "onStartupFinished"
   ],
   "main": "./extension.js",
@@ -48,6 +102,12 @@
         "title": "Check against my team's work in progress",
         "category": "Magellan Lite",
         "icon": "$(organization)"
+      },
+      {
+        "command": "magellanLite.openSuite",
+        "title": "Open the Team suite",
+        "category": "Magellan Lite",
+        "icon": "$(globe)"
       },
       {
         "command": "magellanLite.showOutput",
@@ -99,8 +159,13 @@
       },
       {
         "view": "magellanLite.checklist",
+        "when": "magellanLite.state == nopython",
+        "contents": "Magellan Lite runs on Python 3.10 or newer, and this computer doesn't have one yet. Install it (nothing else is needed: the extension brings the rest), then try again.\n[Get Python](https://www.python.org/downloads/)\n[Try again](command:magellanLite.check)"
+      },
+      {
+        "view": "magellanLite.checklist",
         "when": "magellanLite.state == failed",
-        "contents": "Magellan Lite could not run. Usually the Python in `magellanLite.pythonPath` cannot import it: run `pip install -e <the Magellan Lite repo>` with that Python.\n[Set the Python](command:workbench.action.openSettings?%5B%22magellanLite.pythonPath%22%5D)\n[Show output](command:magellanLite.showOutput)\n[Try again](command:magellanLite.check)"
+        "contents": "Magellan Lite could not run this time.\n[Show what happened](command:magellanLite.showOutput)\n[Try again](command:magellanLite.check)"
       },
       {
         "view": "magellanLite.checklist",
@@ -114,7 +179,7 @@
       },
       {
         "view": "magellanLite.team",
-        "contents": "See what only your work and a teammate's break together, before either of you merges.\n[Share my work in progress](command:magellanLite.share)\n[Check against my team](command:magellanLite.team)"
+        "contents": "See what only your work and a teammate's break together, before either of you merges.\n[Share my work in progress](command:magellanLite.share)\n[Check against my team](command:magellanLite.team)\n[Open the Team suite](command:magellanLite.openSuite)"
       }
     ],
     "configuration": {
@@ -122,8 +187,8 @@
       "properties": {
         "magellanLite.pythonPath": {
           "type": "string",
-          "default": "python",
-          "description": "The Python that has Magellan Lite installed (pip install -e <the repo>)."
+          "default": "",
+          "markdownDescription": "Leave empty: Magellan Lite finds a Python 3.10+ by itself (the one the Python extension selected, then `py`, `python3`, `python`) and brings its own engine, so nothing needs installing. Set a path only to force one interpreter."
         },
         "magellanLite.checkOnSave": {
           "type": "boolean",
@@ -168,6 +233,11 @@
           "command": "magellanLite.team",
           "when": "view == magellanLite.team",
           "group": "navigation@2"
+        },
+        {
+          "command": "magellanLite.openSuite",
+          "when": "view == magellanLite.team",
+          "group": "navigation@3"
         }
       ],
       "commandPalette": [
@@ -176,11 +246,65 @@
           "when": "false"
         }
       ]
-    }
+    },
+    "walkthroughs": [
+      {
+        "id": "magellanLite.start",
+        "title": "Get started with Magellan Lite",
+        "description": "What your change breaks, before you commit it: in four steps.",
+        "steps": [
+          {
+            "id": "check",
+            "title": "Save a change, see the verdict",
+            "description": "Edit a function and save. Magellan Lite compares your work with the last commit: the verdict lands in the status bar, each finding on its line.\n[Check this change now](command:magellanLite.check)",
+            "media": {
+              "markdown": "media/walkthrough/check.md"
+            },
+            "completionEvents": [
+              "onCommand:magellanLite.check"
+            ]
+          },
+          {
+            "id": "map",
+            "title": "Follow the change on the map",
+            "description": "The map shows what you changed and every definition it reaches, hop by hop, even in files nobody opened.\n[Show the map](command:magellanLite.showMap)",
+            "media": {
+              "markdown": "media/walkthrough/map.md"
+            },
+            "completionEvents": [
+              "onCommand:magellanLite.showMap"
+            ]
+          },
+          {
+            "id": "team",
+            "title": "Check against your team",
+            "description": "Share your work in progress (no commit, no branch), and see what only your work plus a teammate's breaks.\n[Share my work in progress](command:magellanLite.share)\n[Check against my team](command:magellanLite.team)",
+            "media": {
+              "markdown": "media/walkthrough/team.md"
+            },
+            "completionEvents": [
+              "onCommand:magellanLite.team"
+            ]
+          },
+          {
+            "id": "suite",
+            "title": "Watch the whole team live",
+            "description": "The website's Team suite opens already connected to this repository. Turn on Share On Save and it follows your work as you go.\n[Open the Team suite](command:magellanLite.openSuite)\n[Turn on Share On Save](command:workbench.action.openSettings?%5B%22magellanLite.shareOnSave%22%5D)",
+            "media": {
+              "markdown": "media/walkthrough/suite.md"
+            },
+            "completionEvents": [
+              "onCommand:magellanLite.openSuite"
+            ]
+          }
+        ]
+      }
+    ]
   },
   "scripts": {
     "sync": "node sync.js",
     "test": "node --test \"test/*.test.js\"",
-    "package": "node sync.js && npx --yes @vscode/vsce package --skip-license"
+    "package": "node sync.js && node bundle.js && npx --yes @vscode/vsce package --skip-license",
+    "bundle": "node bundle.js"
   }
 }

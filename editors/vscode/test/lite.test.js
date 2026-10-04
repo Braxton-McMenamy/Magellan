@@ -42,7 +42,8 @@ test("the status bar shows the verdict and how many findings", () => {
 
 test("Python's answer: JSON, or a reason a person can act on", () => {
   assert.deepEqual(lite.parseOutput('{"verdict": "ok"}', ""), { data: { verdict: "ok" } });
-  assert.match(lite.parseOutput("", "C:\\py\\python.exe: No module named magellan_lite").error, /pip install -e/);
+  assert.match(lite.parseOutput("", "C:\\py\\python.exe: No module named magellan_lite").error,
+    /missing Magellan Lite's engine/);                  // the extension brings it: nothing to pip install
   assert.equal(lite.parseOutput("", "Traceback...\nGitError: not a git repository").error,
     "GitError: not a git repository");
 });
