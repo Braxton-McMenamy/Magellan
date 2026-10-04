@@ -14,16 +14,23 @@ To make a swap: put the cursor on the line under the `# DEMO` comment, press **C
 
 ## Before going on stage
 
-1. Open this folder in VS Code. Magellan Lite's sidebar shows the repository it found from
-   `git remote` and the verdict **ok**.
-2. Settings → `magellanLite.shareOnSave` → on. Every save now publishes the work in progress
-   to `refs/wip/Brayton` on GitHub (no commit, no branch), at most once every 15 seconds.
-3. Command Palette → **Magellan Lite: Open the Team suite**. The website opens connected to this
-   repository. Paste a GitHub token there: it polls every 15 seconds with one, every 90 without.
-   A classic token with no scopes can read a public repository. It stays in that tab only.
-4. Put VS Code on the left and the browser on the right. Close every file except
+1. Use a clean checkout of `main`, not the one you work in: sharing publishes the whole working
+   tree, so anything else uncommitted would go out too. `git worktree add ../magellan-demo main`
+   makes one next to your clone (on Brayton's laptop it is `C:\Users\brayt\Downloads\magellan-demo`).
+2. In VS Code, **File → Open Folder** on `demo/live` in that checkout: this folder, not the
+   repository's root. Magellan Lite then maps the fleet code alone, and its sidebar shows
+   `Braxton-McMenamy/Magellan · demo/live` and the verdict **ok**.
+3. Settings → `magellanLite.shareOnSave` → on. Every save now publishes the work in progress
+   to `refs/wip/<your git user.name>` on GitHub (no commit, no branch), at most once every 15
+   seconds.
+4. Command Palette → **Magellan Lite: Open the Team suite**. The website opens on this folder
+   alone (`suite.html?repo=Braxton-McMenamy/Magellan/demo/live`; the suite's **Use our live
+   demo** button does the same). Paste a GitHub token there: it polls every 15 seconds with
+   one, every 90 without. A classic token with no scopes can read a public repository. It stays
+   in that tab only.
+5. Put VS Code on the left and the browser on the right. Close every file except
    `fleet/voyage.py` and `fleet/cargo.py`.
-5. Do one practice save and press **Look now** on the website: your name appears with **ok**.
+6. Do one practice save and press **Look now** on the website: your name appears with **ok**.
 
 ## On stage, about 60 seconds
 

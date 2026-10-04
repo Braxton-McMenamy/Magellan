@@ -109,7 +109,8 @@ test("detect asks the Git extension, and the deepest repository holding the fold
   const git = fakeGit(REMOTE_V);
   const at = (folderPath) => repo.detect({ vscode, folderPath, run: git.run, platform: "linux" });
   assert.deepEqual(await at("/work/app/src"),
-    { slug: "acme/app", remote: "origin", url: "https://github.com/acme/app" });
+    { slug: "acme/app", remote: "origin", url: "https://github.com/acme/app", folder: "src" });
+  assert.equal((await at("/work/app")).folder, undefined);           // the root: the whole repository
   assert.equal((await at("/work/app")).slug, "acme/app");
   assert.equal((await at("/work/app/vendor/lib/src")).slug, "other/lib");
   assert.equal((await at("/work/app-old/x")).slug, "acme/app-old");   // not /work/app's
@@ -161,8 +162,9 @@ test("before the Git extension has opened any repository, detect asks git itself
   assert.deepEqual(found,
     { slug: "Braxton-McMenamy/Magellan", remote: "origin", url: "https://github.com/Braxton-McMenamy/Magellan" });
   assert.doesNotMatch(JSON.stringify(found), /SECRET|ghp_/);
-  assert.deepEqual(git.calls,
-    [{ exe: "git", args: ["remote", "-v"], opts: { cwd: "/w", timeout: 10000, windowsHide: true } }]);
+  const opts = { cwd: "/w", timeout: 10000, windowsHide: true };
+  assert.deepEqual(git.calls, [{ exe: "git", args: ["remote", "-v"], opts },
+                               { exe: "git", args: ["rev-parse", "--show-prefix"], opts }]);   // where in it
 });
 
 test("no Git extension, a turned-off one, or nothing on GitHub in it: git itself answers", async () => {
@@ -202,4 +204,23 @@ test("the sidebar shows owner/name, and says where it came from", () => {
   assert.equal(d.tip, 'https://github.com/Braxton-McMenamy/Magellan, from the "origin" remote');
   assert.equal(repo.describe(null).text, "No GitHub repository");
   assert.match(repo.describe(null).tip, /no git remote on GitHub/);
+});
+
+test("a folder inside a repository: the suite shows that folder alone", async () => {
+  assert.equal(new URL(repo.suiteUrl("Braxton-McMenamy/Magellan", undefined, "demo/live")).searchParams.get("repo"),
+    "Braxton-McMenamy/Magellan/demo/live");
+  const vscode = fakeVscode([repository("C:\\code\\Magellan", [remote("origin", "https://github.com/Braxton-McMenamy/Magellan")])]);
+  const found = await repo.detect({ vscode, folderPath: "c:/Code/Magellan/demo/Live", run: fakeGit(new Error("no")).run,
+    platform: "win32" });
+  assert.equal(found.folder, "demo/Live");                              // the folder's own spelling
+  assert.equal(repo.describe(found).text, "Braxton-McMenamy/Magellan · demo/Live");
+
+  // without the Git extension: git rev-parse --show-prefix says where the folder is
+  const answers = { remote: REMOTE_V, "rev-parse": "demo/live/\n" };
+  const run = (exe, args, opts, cb) => setImmediate(() => cb(null, answers[args[0]], ""));
+  assert.equal((await repo.detect({ vscode: fakeVscode([]), folderPath: "/w/demo/live", run })).folder, "demo/live");
+  for (const odd of ["../up/\n", "a\nb\n", "demo/li ve/\n"]) {      // anything else: the whole repository
+    answers["rev-parse"] = odd;
+    assert.equal((await repo.detect({ vscode: fakeVscode([]), folderPath: "/w", run })).folder, undefined, odd);
+  }
 });

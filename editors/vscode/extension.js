@@ -112,7 +112,7 @@ function activate(context, deps = {}) {
       vscode.window.showInformationMessage("Magellan Lite: this folder has no GitHub remote, so the Team suite can't read it. Push it to GitHub first (git remote add origin ...).");
       return null;
     }
-    const url = repos.suiteUrl(found.slug);
+    const url = repos.suiteUrl(found.slug, undefined, found.folder);   // a subfolder: that folder alone
     await vscode.env.openExternal(vscode.Uri.parse(url));
     return url;
   }
