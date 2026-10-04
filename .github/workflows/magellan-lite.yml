@@ -1,0 +1,71 @@
+# Magellan Lite on every pull request: one comment with the verdict and the checklist,
+# checked against the pull request's base branch. Each push updates the same comment, found
+# again by the hidden marker on its first line, instead of adding a new one.
+name: Magellan Lite
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:              # a newer push replaces a run still going, so two never race to post
+  group: magellan-lite-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the base branch too, for --against git:origin/<base>
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Magellan Lite
+        run: pip install .
+
+      - name: Check the pull request against its base branch
+        id: check
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          code=0
+          magellan-lite check --against "git:origin/$BASE" --format markdown \
+            > checklist.md 2> errors.txt || code=$?
+          if [ "$code" -ge 2 ]; then
+            { echo "### Magellan Lite could not run"; echo; echo '```'; cat errors.txt; echo '```'; } > checklist.md
+          fi
+          cat checklist.md >> "$GITHUB_STEP_SUMMARY"
+          { echo "<!-- magellan-lite -->"; cat checklist.md; } > comment.md
+          if [ "$(wc -c < comment.md)" -gt 60000 ]; then   # a comment holds 65536 characters
+            head -c 60000 comment.md > cut.md && mv cut.md comment.md
+            printf '\n\n(Cut short: the whole checklist is in the run summary.)\n' >> comment.md
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Post the checklist, or update the earlier comment
+        # a pull request from a fork gets a read-only token; its checklist is in the run summary
+        if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq \
+            '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- magellan-lite -->"))) | .id' \
+            | head -n 1)
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$id" -F body=@comment.md > /dev/null
+          else
+            gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@comment.md > /dev/null
+          fi
+
+      - name: Fail on a blocking verdict
+        if: steps.check.outputs.code != '0'
+        run: |
+          echo "Magellan Lite: the verdict is BLOCK, or the check could not run. See the comment."
+          exit 1
