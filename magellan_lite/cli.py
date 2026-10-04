@@ -2,12 +2,14 @@
 
     magellan-lite check [PATH] [--against git:HEAD] [--format text|json|markdown] [--fail-on block]
     magellan-lite hook install [PATH] [--force]       check before every commit
+    magellan-lite brief [PATH] [--against git:HEAD] [--format json|text] [--limit 8]
     magellan-lite rules
     magellan-lite share [PATH] [--remote origin]      publish your work in progress
     magellan-lite team  [PATH] [--remote origin]      check it against your teammates'
+    magellan-lite mcp   [PATH]                        the tools above, for an AI agent (MCP)
 
-``check`` exits 1 when the verdict reaches ``--fail-on`` (default ``block``), so it can gate
-a commit; 2 when it cannot run (not a git repository, no commits yet).
+``check`` and ``brief`` exit 1 when the verdict reaches ``--fail-on`` (default ``block``), so
+they can gate a commit; 2 when they cannot run (not a git repository, no commits yet).
 ``check`` reads the project's settings from pyproject.toml's ``[tool.magellan-lite]``
 (settings.py); a flag on the command line beats them.
 """
@@ -43,6 +45,17 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--map", action="store_true",
                    help="with --format json: add the code map the editor and website draw")
 
+    b = sub.add_parser("brief", help="the check, cut down for an AI agent: the verdict, what "
+                                     "to fix first, files to re-read, tests to run")
+    b.add_argument("path", nargs="?", default=".", help="the project (default: here)")
+    b.add_argument("--against", default="git:HEAD", metavar="BASELINE",
+                   help="git:REV, or a directory holding the old version (default: git:HEAD)")
+    b.add_argument("--format", choices=("json", "text"), default="json")
+    b.add_argument("--limit", type=int, default=8, metavar="N",
+                   help="entries per list (default: 8)")
+    b.add_argument("--fail-on", choices=(*VERDICTS[1:], "never"), default="block",
+                   help="exit 1 when the verdict is at least this (default: block)")
+
     sub.add_parser("rules", help="list the checklist rules")
 
     sh = sub.add_parser("share", help="publish your work in progress (no commit, no branch) "
@@ -59,6 +72,11 @@ def build_parser() -> argparse.ArgumentParser:
     tm.add_argument("--format", choices=("text", "json"), default="text")
     tm.add_argument("--fail-on", choices=(*VERDICTS[1:], "never"), default="block",
                     help="exit 1 when any combination's verdict is at least this")
+
+    m = sub.add_parser("mcp", help="a Model Context Protocol server on stdin/stdout, so an AI "
+                                   "agent can call brief, check, reach and the rest as tools")
+    m.add_argument("path", nargs="?", default=".",
+                   help="the project tools use when a call names none (default: here)")
 
     s = sub.add_parser("serve", help="the website and its live API on this computer")
     s.add_argument("--host", default="127.0.0.1",
@@ -100,6 +118,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{r.id:<34} {r.severity:<8} {kind:<6} {'blocking' if r.blocking else ''}")
         return 0
 
+    if args.command == "mcp":
+        from magellan_lite.mcp import serve as serve_mcp
+        return serve_mcp(args.path)
+
     if args.command == "hook":
         from magellan_lite.hook import install
         return install(args.path, args.force)
@@ -137,6 +159,16 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if any(c.report and c.report.fails(args.fail_on) for c in results) else 0
 
     from pathlib import Path
+
+    if args.command == "brief":
+        from magellan_lite import brief
+        try:
+            b = brief.brief(args.path, args.against, args.limit)
+        except (GitError, ValueError, OSError) as exc:
+            print(f"magellan-lite: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(b, indent=2) if args.format == "json" else brief.text(b))
+        return 1 if brief.fails(b, args.fail_on) else 0
 
     from magellan_lite import settings
     from magellan_lite.engine import check_snapshots, load_before
