@@ -17,6 +17,45 @@ CALLABLE_KINDS = ("function", "method")
 
 
 @dataclass(frozen=True)
+class Params:
+    """What a function accepts, to check a call site against it."""
+    positional: tuple[str, ...]          # positional parameters, in order (self included)
+    defaults: int                        # how many of the last positional ones have defaults
+    positional_only: int                 # how many lead the list before a `/`
+    varargs: bool                        # *args
+    keyword_only: tuple[str, ...]
+    keyword_required: tuple[str, ...]    # keyword-only parameters without a default
+    varkw: bool                          # **kwargs
+    binds_first: bool                    # a method (not a staticmethod): `self` is passed for you
+
+    def bound(self) -> "Params":
+        """As seen through ``obj.method(...)``: the first parameter is filled already."""
+        if not self.binds_first or not self.positional:
+            return self
+        return Params(self.positional[1:], min(self.defaults, len(self.positional) - 1),
+                      max(self.positional_only - 1, 0), self.varargs, self.keyword_only,
+                      self.keyword_required, self.varkw, False)
+
+    def problems(self, n_positional: int, keywords: tuple[str, ...]) -> list[str]:
+        """Why a call with these arguments raises TypeError; empty when it fits."""
+        out: list[str] = []
+        if not self.varargs and n_positional > len(self.positional):
+            out.append(f"takes at most {len(self.positional)} positional argument(s), the call "
+                       f"passes {n_positional}")
+        required = self.positional[:len(self.positional) - self.defaults]
+        missing = [p for i, p in enumerate(required)
+                   if i >= n_positional and (i < self.positional_only or p not in keywords)]
+        missing += [k for k in self.keyword_required if k not in keywords]
+        if missing:
+            out.append(f"requires {', '.join(missing)}, which the call does not pass")
+        accepted = set(self.positional[self.positional_only:]) | set(self.keyword_only)
+        unknown = [k for k in keywords if k not in accepted]
+        if unknown and not self.varkw:
+            out.append(f"has no parameter named {', '.join(unknown)}")
+        return out
+
+
+@dataclass(frozen=True)
 class Definition:
     name: str               # pkg.mod.Class.method: stable across moves and edits
     kind: str               # function | method | class | constant
@@ -26,6 +65,7 @@ class Definition:
     signature: str = ""     # callables: parameters and return type; classes: bases
     body: str = ""          # hash of the body's syntax tree
     value: str = ""         # constants: the value's source
+    params: Params | None = None     # callables: what a call must pass
 
     @property
     def short(self) -> str:
@@ -54,11 +94,26 @@ def _signature(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     return ("async " if isinstance(fn, ast.AsyncFunctionDef) else "") + sig
 
 
+def _params(fn, kind: str) -> Params:
+    a = fn.args
+    decorators = {d.id if isinstance(d, ast.Name) else getattr(d, "attr", "")
+                  for d in fn.decorator_list}
+    kw_required = tuple(arg.arg for arg, default in zip(a.kwonlyargs, a.kw_defaults)
+                        if default is None)
+    return Params(
+        positional=tuple(arg.arg for arg in a.posonlyargs + a.args),
+        defaults=len(a.defaults), positional_only=len(a.posonlyargs),
+        varargs=a.vararg is not None, keyword_only=tuple(arg.arg for arg in a.kwonlyargs),
+        keyword_required=kw_required, varkw=a.kwarg is not None,
+        binds_first=kind == "method" and "staticmethod" not in decorators)
+
+
 def _function(fn, qual: str, kind: str, path: str) -> Definition:
     return Definition(
         name=qual, kind=kind, path=path, line=fn.lineno, end_line=fn.end_lineno or fn.lineno,
         signature=_signature(fn),
-        body=_hash(_dump(fn.decorator_list), _dump(_without_docstring(fn.body))))
+        body=_hash(_dump(fn.decorator_list), _dump(_without_docstring(fn.body))),
+        params=_params(fn, kind))
 
 
 def _constants(stmt: ast.stmt, prefix: str, path: str) -> list[Definition]:

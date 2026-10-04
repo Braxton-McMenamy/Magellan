@@ -9,6 +9,8 @@ from magellan_lite.defs import Definition, definitions
 from magellan_lite.diff import Change, Spans, changed_spans, diff, in_spans
 from magellan_lite.findings import Finding, iter_change_rules, run_file_rules
 from magellan_lite.git import snapshot_at
+from magellan_lite.graph import CallGraph, build_graph
+from magellan_lite.radius import blast_radius
 from magellan_lite.report import Report
 from magellan_lite.source import Snapshot, working_tree
 
@@ -23,6 +25,7 @@ class ChangeContext:
     after_defs: dict[str, Definition]
     changes: list[Change]
     spans: Spans
+    graph: CallGraph            # the new version's call graph (edges to deleted names kept)
 
 
 def load_before(root: Path, against: str) -> Snapshot:
@@ -57,15 +60,11 @@ def check(root: str | Path = ".", against: str = "git:HEAD") -> Report:
     #   `# magellan: ignore[rule-id]` is dropped here and counted instead ("1 suppressed").
     #   Done when: tests/test_engine.py has a case where the comment silences exactly one rule.
 
-    # TODO(engine): the blast radius -- the headline feature. Build a call graph from the
-    #   after snapshot (who calls whom: ast.Call nodes resolved through imports to
-    #   Definition names), walk it backwards from each changed function, and fill
-    #   report.affected with {"name", "path", "line", "hops", "score", "why"} (score fades with
-    #   distance, e.g. 0.9 per hop). Port the idea, not the code, from magellan/core/propagate.py.
-    #   Done when: on the sensor demo, collector.collect is listed as affected by the
-    #   parse_record signature change, one hop away.
+    # the blast radius: what the change reaches that it did not touch (radius.py)
+    graph = build_graph(after, after_defs, before_defs)
+    report.affected = blast_radius(changes, graph, after_defs)
 
-    ctx = ChangeContext(root, before, after, before_defs, after_defs, changes, spans)
+    ctx = ChangeContext(root, before, after, before_defs, after_defs, changes, spans, graph)
     for r in iter_change_rules():
         try:
             report.findings += [f if f.fix or not r.fix else _with_fix(f, r.fix)
