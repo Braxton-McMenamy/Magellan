@@ -229,29 +229,38 @@ button.button { font: inherit; font-weight: 600; cursor: pointer; }
 .all-results > summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 
 /* -- the code map (map.js): on the dark stage and on the page ------------------------ */
-.map { display: block; width: 100%; height: auto; max-height: 440px; }
-.map-box { --map-bg: var(--surface); --map-text: var(--text); --map-dot: #9aa8b8; --map-edge: #9aa8b8; }
-.story-stage .map-box { --map-bg: #070c12; --map-text: #c9d4df; --map-dot: #5d6d80; --map-edge: #52637a; }
+.map { display: block; width: 100%; height: auto; }
+.map-box { --map-bg: var(--surface); --map-text: var(--text); --map-muted: var(--muted); --map-dot: #9aa8b8; --map-edge: #9aa8b8; }
+.story-stage .map-box { --map-bg: #070c12; --map-text: #dce4ee; --map-muted: #7d8b9c; --map-dot: #5d6d80; --map-edge: #52637a; }
 .map .node, .map .edge { transition: opacity .35s ease; }
 .map.playing .node:not(.in), .map.playing .edge:not(.in) { opacity: 0; }
-.map .edge { fill: none; stroke: var(--map-edge); stroke-width: 1.3; opacity: .55; }
+.map .col-head {
+  font: 700 9.5px var(--font); fill: var(--map-muted); text-anchor: middle;
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.map .edge { fill: none; stroke: var(--map-edge); stroke-width: 1.4; opacity: .5; }
 .map .edge.reads { stroke-dasharray: 4 3; }
 .map .edge.guess { stroke-dasharray: 1 3; opacity: .35; }
 .map .edge.impact.lit {
-  stroke: var(--hot); stroke-width: 2.2; opacity: .95; stroke-dasharray: 6 5;
+  stroke: var(--hot); stroke-width: 2.4; opacity: .95; stroke-dasharray: 7 5;
   animation: flow .9s linear infinite;
 }
-@keyframes flow { to { stroke-dashoffset: 22; } }   /* toward the caller: impact runs backwards */
-.edge-arrow { fill: var(--map-edge); }
+@keyframes flow { to { stroke-dashoffset: -24; } }   /* left to right: the change reaching its callers */
 .map .dot { fill: var(--map-dot); stroke: var(--map-bg); stroke-width: 2; transition: fill .4s; }
 .map .halo { fill: transparent; transform-box: fill-box; transform-origin: center; }
 .map .label {
-  font: 600 10px var(--font); fill: var(--map-text); text-anchor: middle;
-  paint-order: stroke; stroke: var(--map-bg); stroke-width: 3px; stroke-linejoin: round;
+  font: 600 11.5px var(--font); fill: var(--map-text); text-anchor: middle;
+  paint-order: stroke; stroke: var(--map-bg); stroke-width: 4px; stroke-linejoin: round;
 }
+.map .file {
+  font: 9.5px var(--mono); fill: var(--map-muted); text-anchor: middle;
+  paint-order: stroke; stroke: var(--map-bg); stroke-width: 4px; stroke-linejoin: round;
+}
+.map .node.context .label { fill: var(--map-muted); font-weight: 500; }
+.map .node.context .dot { opacity: .7; }
 .map .score {
-  font: 700 9.5px var(--mono); fill: var(--hot); text-anchor: middle; opacity: 0; transition: opacity .4s;
-  paint-order: stroke; stroke: var(--map-bg); stroke-width: 3px;
+  font: 700 10px var(--mono); fill: var(--hot); opacity: 0; transition: opacity .4s;
+  paint-order: stroke; stroke: var(--map-bg); stroke-width: 4px;
 }
 .map .node.changed.lit .dot { fill: var(--accent); }
 .map .node.changed.lit .halo { fill: color-mix(in srgb, var(--accent) 25%, transparent); animation: grow 1.4s ease-out 2; }
@@ -273,8 +282,7 @@ button.button { font: inherit; font-weight: 600; cursor: pointer; }
 .lg.changed { background: var(--accent); }
 .lg.affected { background: var(--hot); }
 .lg.finding { border: 2px solid #ff3b30; }
-.lg.edge, .lg.reads { width: 16px; height: 0; border-radius: 0; border-top: 1.5px solid var(--map-edge); vertical-align: 3px; }
-.lg.reads { border-top-style: dashed; }
+.lg.spread { width: 18px; height: 0; border-radius: 0; border-top: 2px dashed var(--hot); vertical-align: 3px; }
 .map-empty { color: var(--muted); padding: 20px; text-align: center; margin: 0; }
 
 /* -- the checklist ------------------------------------------------------------------- */
