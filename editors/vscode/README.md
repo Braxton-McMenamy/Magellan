@@ -39,11 +39,14 @@ software failures on what it found, and gives the change one verdict: `ok`, `rev
 
 ## Quick start
 
-1. **Install the extension**: Extensions view → `...` → *Install from VSIX...* →
-   `magellan-lite-0.3.0.vsix`, or `code --install-extension magellan-lite-0.3.0.vsix`.
+1. **Install the extension**: download
+   [magellan-lite-0.3.1.vsix](https://magellan-code.pages.dev/downloads/magellan-lite-0.3.1.vsix)
+   from the website, then Extensions view → `...` → *Install from VSIX...* → pick it, or
+   `code --install-extension magellan-lite-0.3.1.vsix`.
 2. **Open a project and save a change.** The verdict appears in the status bar a moment later,
    and each finding on its line. That's all: there is nothing to configure.
-3. **Open the map**: click the verdict, or run **Magellan Lite: Show the map**.
+3. **Open the map**: click the verdict, or run **Magellan Lite: Show the map**. Then click into
+   any function in the editor: the map shows it and its neighbourhood.
 
 *Help → Get Started → Get started with Magellan Lite* walks through the rest in four steps.
 
@@ -86,22 +89,34 @@ feel the change, hop by hop.
 
 ![The whole project in 3D, coloured by the change: what changed glows orange, what it reaches is red by how hard, a red ring marks a finding](media/readme/map-3d.png)
 
-**Magellan Lite: Show the map** opens the map beside your code, in two views:
+**Magellan Lite: Show the map** opens the map beside your code, on its own: the verdict in a
+line above it, the findings a click away.
 
-- **Flow:** the change, left to right: what it uses, the change, then everything it reaches,
-  one hop per column, with a score for how hard each one is hit. Click any dot to open it.
-- **3D:** the whole project as clusters on a sphere, by **language**, **folder** or
+- **Global:** the whole project in 3D, as clusters on a sphere, by **language**, **folder** or
   **who calls whom**. Functions are spheres, classes cubes, data diamonds. What changed
   glows orange, what it reaches is red by heat, a red ring marks a finding. Drag to turn,
   the wheel flies toward the cursor, **F** flies to the picked dot, **Home** shows everything,
   double-click opens.
+- **Local:** click into a function or class in the editor, and the map shows it and its
+  neighbourhood: what depends on it two hops back, and what it uses. One **Local** tab follows
+  the cursor as you move through the code. **Global** goes back to the whole map (and stops
+  following); **Local** follows again. The padlock, or **L**, locks the map: clicks in the code
+  leave it alone until you unlock it. Opening code from the map never moves the map.
+- **Flow:** a neighbourhood (Local, or a sub-graph) read left to right: what it uses, it, then
+  everything that depends on it, one hop per column, with a score for how hard each one would
+  be hit. Click a dot to open it. The whole map is 3D only: as a flow, a whole project is too
+  big to read.
+- **Findings:** the **Findings** button (with the count) opens every finding in a drawer beside
+  the map, worst first, each with its fix; what the change reaches and what changed are folded
+  below them. Click a dot with a red ring for its own findings, with a button that opens its
+  code. **Escape** closes the drawer.
 - **The skull** lights up code nothing in the project uses: definitions whose name appears
   nowhere else. Decorated definitions, overrides and tests are left out, since something
   finds them without naming them.
 - **Sub-graphs:** right-click a dot (in either view) for **Show sub-graph**: it, what depends
   on it two hops back and what it uses, in a tab of its own above the map, with its own camera
   and both views. **Sub-graph of its file** does the same for everything in its file. The
-  first tab is the whole map; **[** and **]** switch, × closes.
+  first tab is the whole map, then Local; **[** and **]** switch, × closes.
 
 The same renderers draw the website's [Scene](https://magellan-code.pages.dev/scene.html) and
 [Team suite](https://magellan-code.pages.dev/suite.html).
@@ -111,7 +126,7 @@ The same renderers draw the website's [Scene](https://magellan-code.pages.dev/sc
 | command | what it does |
 |---|---|
 | **Magellan Lite: Check this change** | check now (it also runs on every save) |
-| **Magellan Lite: Show the map** | the map panel: verdict, Flow and 3D with their sub-graphs, the checklist |
+| **Magellan Lite: Show the map** | the map panel: the whole map in 3D, Local (follows the cursor; a lock), sub-graphs, Flow, the findings beside it |
 | **Magellan Lite: Share my work in progress with my team** | publish your working tree to `refs/wip/<you>` |
 | **Magellan Lite: Check against my team's work in progress** | what only your work plus a teammate's breaks |
 | **Magellan Lite: Open the Team suite** | the website's live team view, connected to this repository |
@@ -155,11 +170,12 @@ up on the next save.
 | file | what |
 |---|---|
 | `extension.js` | commands, check on save, the Problems panel, the status bar, the map panel |
+| `follow.js` | which definition the cursor is in, and when to tell the map panel (Local) |
 | `python.js` | finding a Python and the engine, so nobody configures either |
 | `repo.js` | which GitHub repository this workspace is, from its git remote |
 | `sidebar.js` | the sidebar's three views, the Activity Bar badge, the Explorer badges |
 | `lite.js` | what to do with Magellan Lite's JSON (no VS Code in it, so plain Node tests it) |
-| `panel.js`, `media/panel.*` | the map panel's page |
+| `panel.js`, `media/panel.*`, `media/findings.js` | the map panel's page; which findings are in which dot |
 | `media/map.js`, `media/graph3d.js`, `media/scene3d.js`, `media/subgraph*.js`, `media/map.css` | the website's Flow and 3D renderers and its sub-graphs, copied by `sync.js` (edit `site/`, then `npm run sync`) |
 | `media/walkthrough/` | the Get Started walkthrough's pages |
 | `bundle.js` | copies `magellan_lite/` into `engine/` when packaging (not committed) |

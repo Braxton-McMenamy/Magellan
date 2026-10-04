@@ -20,6 +20,7 @@
       <a href="#incidents">Failures</a>
       <a href="#checklist">Checklist</a>
       <a href="#try">Try it</a>
+      <a href="#vscode">VS Code</a>
       <a href="#team">Team</a>
       <a class="nav-page" href="suite.html">Team suite</a>
       <a class="nav-page" href="scene.html">Scene</a>
@@ -41,6 +42,7 @@
           <div class="cta">
             <a class="button primary" href="#incidents">Watch it replay real failures</a>
             <a class="button" href="#try">Try it on your code</a>
+            <a class="button" href="#vscode">Get the VS Code extension</a>
           </div>
         </div>
         <div class="terminal-window">
@@ -156,6 +158,37 @@ magellan-lite team             # what only your work + theirs breaks</pre>
             <span>Choose report.json</span>
           </label>
           <div id="report-view" class="report-view" aria-live="polite"></div>
+        </article>
+      </div>
+    </section>
+
+    <section id="vscode" class="reveal" aria-labelledby="vscode-title">
+      <h2 id="vscode-title">In VS Code</h2>
+      <p class="section-lede">The verdict in the status bar every time you save, each problem
+        where it lands, a map that follows the code you click on, and your team's work in
+        progress beside yours, live on the Team suite. It brings its own engine: all it needs is
+        a Python 3.10 or newer on the machine, which it finds by itself.</p>
+      <div class="cards two">
+        <article class="card">
+          <h3>Install it</h3>
+          <p><a class="button primary" href="downloads/magellan-lite-0.3.1.vsix" download>Download
+            Magellan Lite 0.3.1</a></p>
+          <p>Then in VS Code: Extensions, the <code>...</code> menu, <strong>Install from
+            VSIX...</strong>, and pick the file. Or from a terminal:</p>
+          <pre class="code">code --install-extension magellan-lite-0.3.1.vsix</pre>
+        </article>
+        <article class="card">
+          <h3>Then</h3>
+          <ol>
+            <li>Open a folder that is a git repository.</li>
+            <li>Save a change: the status bar says <span class="verdict ok">ok</span>,
+              <span class="verdict review">review</span> or <span class="verdict block">block</span>,
+              and each finding shows where the damage lands, even in files you didn't open.</li>
+            <li><strong>Magellan Lite: Show the map</strong>: click into a function and the map
+              shows what it reaches; the lock holds it still.</li>
+            <li>Turn on <strong>Share On Save</strong> and <strong>Open the Team suite</strong>:
+              your team sees your work in progress as you go.</li>
+          </ol>
         </article>
       </div>
     </section>

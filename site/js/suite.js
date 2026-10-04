@@ -10,7 +10,9 @@
   const RANK = { block: 0, review: 1, ok: 2 };
 
   let feed = null, result = null, people = {};
-  let mapMode = "3d", mapView = null;       // the project map: 3D (the whole project) or Flow
+  // the project map is 3D (as a flow, a whole project is too big to read); a sub-graph shown
+  // in its place can be read as a Flow too, and keeps the choice
+  let mapMode = "3d", mapView = null;       // a sub-graph's view: 3D or Flow
   let sub = null;                           // a sub-graph shown in its place: { ids } or { file } (js/subgraph.js)
 
   // -- connecting ------------------------------------------------------------------------------
@@ -227,7 +229,8 @@
   }
 
   // The project map: the whole project in 3D from the moment a repository is connected, each
-  // person's changes in their colour once they share; or the changes as a flow, hop by hop.
+  // person's changes in their colour once they share. A sub-graph in its place: 3D, or a flow,
+  // hop by hop.
   function drawTeamMap() {
     if (!result || !result.team) return;
     const box = $("team-map");
@@ -239,10 +242,12 @@
     $("map-note").hidden = !part;
     $("map-back").hidden = !part;
     $("map-scene").href = sceneLink(sub);
-    $("map-views").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === mapMode)));
-    box.classList.toggle("is-3d", mapMode === "3d");
+    const mode = part ? mapMode : "3d";
+    $("map-views").hidden = !part;
+    $("map-views").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === mode)));
+    box.classList.toggle("is-3d", mode === "3d");
     if (mapView && mapView.destroy) mapView.destroy();
-    const map = !part ? result.team.map : mapMode === "flow" ? MagellanSubgraph.flow(part) : part;
+    const map = !part ? result.team.map : mode === "flow" ? MagellanSubgraph.flow(part) : part;
     const opts = {
       people: sharing ? people : null, animate: false,
       label: part ? MagellanSubgraph.title(part) : sharing ? "Everyone's changes at once, and what they reach" : "The whole project",
@@ -250,7 +255,7 @@
       onPick: pick,
       onContext: menu,
     };
-    mapView = mapMode === "3d" ? MagellanScene3D.render(box, map, opts) : MagellanMap.render(box, map, opts);
+    mapView = mode === "3d" ? MagellanScene3D.render(box, map, opts) : MagellanMap.render(box, map, opts);
   }
   $("map-views").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     mapMode = b.dataset.view;
@@ -312,6 +317,6 @@
   let resized = null;
   addEventListener("resize", () => {
     clearTimeout(resized);
-    resized = setTimeout(() => result && result.team && (!$("panel-team").hidden ? (mapMode === "flow" && drawTeamMap()) : drawYou()), 200);
+    resized = setTimeout(() => result && result.team && (!$("panel-team").hidden ? (sub && mapMode === "flow" && drawTeamMap()) : drawYou()), 200);
   });
 })();

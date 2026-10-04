@@ -7,7 +7,9 @@
  *   Magellan Lite: Check this change the same, now
  *   the Magellan Lite sidebar        Checklist, What it reaches, Team (sidebar.js), and finding
  *                                    counts on files in the Explorer, like the full Magellan's
- *   Magellan Lite: Show the map      a panel: the change, what it reaches, the checklist
+ *   Magellan Lite: Show the map      a panel: the map (the whole project, or where the cursor is:
+ *                                    Local / Global, and a lock, as in the full Magellan's graph
+ *                                    tab: follow.js), the findings in a drawer beside it
  *   Magellan Lite: Share my work...  magellan-lite share (your work in progress, for your team)
  *   magellanLite.shareOnSave         the same after you save (off unless you turn it on), so
  *                                    your team's Team suite on the website sees your work live
@@ -29,6 +31,7 @@ const lite = require("./lite");
 const py = require("./python");
 const repos = require("./repo");
 const { panelHtml, nonce } = require("./panel");
+const { definitionAt, follower } = require("./follow");
 const { installSidebar } = require("./sidebar");
 
 function activate(context, deps = {}) {
@@ -156,7 +159,11 @@ function activate(context, deps = {}) {
     // coloured by verdict, so a block can't be missed: red on block, yellow on review
     const colour = VERDICT_BACKGROUND[r.data.verdict];
     status.backgroundColor = colour ? new vscode.ThemeColor(colour) : undefined;
-    if (state.panel) state.panel.webview.postMessage({ type: "report", report: r.data, repo: state.repo && state.repo.slug });
+    if (state.panel) {
+      state.panel.webview.postMessage({ type: "report", report: r.data, repo: state.repo && state.repo.slug });
+      followNow(state.quietFollow ? { quiet: true } : undefined);   // the new map may put the cursor elsewhere
+      state.quietFollow = false;
+    }
     return r.data;
   }
 
@@ -228,11 +235,46 @@ function activate(context, deps = {}) {
     return pick;
   }
 
-  /** Open a project-relative file at a (1-based) line. */
-  async function openAt(rel, line) {
+  /** Open a project-relative file at a (1-based) line (in ``column``, when given). */
+  async function openAt(rel, line, column) {
     const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(folder().uri.fsPath, rel)));
     const at = new vscode.Position(Math.max(0, (line || 1) - 1), 0);
-    await vscode.window.showTextDocument(doc, { selection: new vscode.Range(at, at), preview: false });
+    await vscode.window.showTextDocument(doc, { selection: new vscode.Range(at, at), preview: false,
+      ...(column ? { viewColumn: column } : {}) });
+  }
+
+  // -- the map follows the code -------------------------------------------------------------
+  // While the map panel is open, the definition the cursor rests in goes to it (its Local view
+  // shows it and its neighbourhood), as the full Magellan's graph tab follows the cursor. The
+  // panel decides what to do with it (Global, the lock); a closed panel is never opened for it.
+
+  /** Where an editor's cursor is: { path (project-relative, "/"), line (1-based), lines() }. */
+  function cursorOf(editor) {
+    const f = folder(), doc = editor && editor.document;
+    if (!f || !doc || !doc.uri || doc.uri.scheme !== "file" || !editor.selection) return null;
+    const rel = path.relative(f.uri.fsPath, doc.uri.fsPath).split(path.sep).join("/");
+    if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) return null;
+    return { path: rel, line: editor.selection.active.line + 1,
+      lines: () => String(doc.getText ? doc.getText() : "").split(/\r?\n/) };
+  }
+  const follow = follower({
+    delay: deps.followDelay ?? 250,
+    find: (at) => definitionAt(state.report && state.report.map && state.report.map.nodes, at.path, at.line, at.lines()),
+    send: (node, extra = {}) => {
+      if (state.panel) state.panel.webview.postMessage({ type: "focus", id: node.id, path: node.path, line: node.line, ...extra });
+    },
+  });
+  /** Tell the panel where the cursor is now, without waiting (a new report; a panel that just
+   *  opened, quietly: it shows the whole map first). */
+  const followNow = (extra) => state.panel && follow.now(cursorOf(vscode.window.activeTextEditor), extra);
+
+  /** The column to open code in from the panel: an editor's beside it, never the panel's own
+   *  (opening over the map would hide what was just clicked). */
+  function besidePanel(panel) {
+    const mine = panel.viewColumn;
+    const other = (vscode.window.visibleTextEditors || []).find((e) => e.viewColumn && e.viewColumn !== mine);
+    if (other) return other.viewColumn;
+    return mine === 1 ? vscode.ViewColumn.Beside : 1;
   }
 
   function showMap() {
@@ -241,12 +283,24 @@ function activate(context, deps = {}) {
     const panel = vscode.window.createWebviewPanel("magellanLite.map", "Magellan Lite map",
       vscode.ViewColumn.Beside, { enableScripts: true, retainContextWhenHidden: true, localResourceRoots: [media] });
     state.panel = panel;
-    panel.onDidDispose(() => { state.panel = null; });
+    follow.reset();
+    panel.onDidDispose(() => { if (state.panel === panel) state.panel = null; follow.reset(); });
     panel.webview.onDidReceiveMessage((m) => {
       if (m.type === "ready" && state.report) {
         panel.webview.postMessage({ type: "report", report: state.report, repo: state.repo && state.repo.slug });
       }
-      if (m.type === "open") openAt(m.path, m.line).catch((e) => out.appendLine(`could not open ${m.path}: ${e.message}`));
+      if (m.type === "ready") {
+        // a panel that just opened shows the whole map first: the cursor fills its Local view in
+        // quietly (now, or with the first report when the check is still running)
+        follow.reset();
+        state.quietFollow = !state.report;
+        followNow({ quiet: true });
+      }
+      if (m.type === "open" && typeof m.path === "string") {
+        // the cursor landing there is the panel's doing, not a click in the code: the map stays
+        follow.opened(m.path, m.line);
+        openAt(m.path, m.line, besidePanel(panel)).catch((e) => out.appendLine(`could not open ${m.path}: ${e.message}`));
+      }
       // the panel's buttons may run these, and only these
       if (m.type === "run" && PANEL_COMMANDS.has(m.command)) vscode.commands.executeCommand(m.command);
     });
@@ -281,10 +335,17 @@ function activate(context, deps = {}) {
       sidebar.refresh();
     }
   }));
-  sub({ dispose: () => { clearTimeout(state.timer); clearTimeout(state.shareTimer); } });
+  if (vscode.window.onDidChangeTextEditorSelection) {
+    sub(vscode.window.onDidChangeTextEditorSelection((e) => {
+      if (!state.panel || !state.report) return;
+      const at = cursorOf(e.textEditor);
+      if (at) follow.cursor(at);
+    }));
+  }
+  sub({ dispose: () => { clearTimeout(state.timer); clearTimeout(state.shareTimer); follow.dispose(); } });
 
   const first = folder() ? Promise.all([check(), findRepo()]).then(([r]) => r) : Promise.resolve(null);
-  return { check, team, share, showMap, openSuite, findRepo, state, first, warnShareOnSave };
+  return { check, team, share, showMap, openSuite, findRepo, state, first, warnShareOnSave, follow };
 }
 
 /** What the map panel's buttons may ask for. */

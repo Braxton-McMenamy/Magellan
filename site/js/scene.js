@@ -1,7 +1,8 @@
 // The Scene (scene.html): one map, as big as the screen, laid out like a 3D editor -- what to
-// show on the left, the viewport in the middle, the picked dot's properties on the right. Two
-// views of the same map: 3D (the whole project, js/scene3d.js) and Flow (the change, hop by
-// hop, js/map.js). What it shows:
+// show on the left, the viewport in the middle, the picked dot's properties on the right. The
+// whole map is 3D (the whole project, js/scene3d.js): as a flow, a whole project is too big to
+// read. A neighbourhood -- a sub-graph, or what depends on a dot -- can also be read as a Flow
+// (hop by hop, js/map.js). What it shows:
 //   #team            your team's work in progress, everyone at once (the Team suite's connection)
 //   #team/<name>     one person's work
 //   #itself          Magellan Lite's own code (data/project.js): there before anything is connected
@@ -26,11 +27,14 @@
     "3d": { label: "3D", draw: (box, map, opts) => MagellanScene3D.render(box, map, opts) },
     flow: { label: "Flow", draw: (box, map, opts) => MagellanMap.render(box, map, opts) },
   };
+  // the view last chosen for a neighbourhood (the whole map is always 3D)
   const remember = {
     get() { try { return sessionStorage.getItem("magellan-scene-view") || ""; } catch { return ""; } },
     set(v) { try { sessionStorage.setItem("magellan-scene-view", v); } catch { /* private mode */ } },
   };
   const firstView = () => (VIEWS[remember.get()] ? remember.get() : "3d");
+  /** A tab whose map is a neighbourhood, which Flow can read: a sub-graph, or what depends on a dot. */
+  const near = (tab) => !!tab && (!!tab.spec || !!tab.following);
 
   const itself = window.MAGELLAN_PROJECT || null;
   let team = null, people = {}, current = null;
@@ -234,10 +238,10 @@
     t.pane.remove();
   }
 
-  /** A new source: its whole map alone, in the view last chosen. */
+  /** A new source: its whole map alone, in 3D. */
   function resetTabs(key) {
     tabs.forEach(dropTab);
-    tabs = key ? [newTab(null, firstView())] : [];
+    tabs = key ? [newTab(null, "3d")] : [];
     active = null;
     visited = [];
     tabsOf = key;
@@ -257,9 +261,7 @@
       map = reachFrom(map, tab.following.id);
       tab.head = [`What depends on ${tab.following.label || tab.following.id}`,
         `${plural(map.dependents, "definition")} would feel a change to it · ${tab.following.path}:${tab.following.line}`];
-    } else if (tab.view === "flow" && !map.nodes.some((n) => n.change || n.score > 0)) {
-      tab.head = [src.title, "Nothing changed here: pick a dot in 3D, then “What depends on it” or “Show sub-graph”."];
-    }
+    } else tab.view = "3d";                               // the whole map: 3D only
     return map;
   }
 
@@ -294,6 +296,8 @@
     document.querySelector(".scene-stage").classList.toggle("is-3d", tab.view === "3d");
     if (tab.stale || !tab.shown) render(tab, animate);
     else if (tab.shown.view) { tab.shown.view.resize(); tab.shown.view.dirty = true; tab.shown.view.start(); }
+    // the whole map falls back to 3D when the dot it followed left the map
+    document.querySelector(".scene-stage").classList.toggle("is-3d", tab.view === "3d");
     const src = shownSource();
     $("scene-title").textContent = tab.head[0];
     $("scene-sub").textContent = tab.head[1];
@@ -312,7 +316,7 @@
     const had = tabs.find((t) => SG.same(t.spec, spec));
     if (had) { activate(had, animate); return had; }
     if (!SG.build(src.report.map, spec).nodes.length) return false;      // an unknown id: ignored
-    const tab = newTab(spec, active ? active.view : firstView());
+    const tab = newTab(spec, near(active) ? active.view : firstView());
     tabs.push(tab);
     activate(tab, animate);
     return tab;
@@ -387,10 +391,12 @@
     if (!spec || !openSub(spec, animate)) activate(tabs[0], animate);
   }
 
+  /** Flow or 3D, for a neighbourhood; none for the whole map, which is 3D only. */
   function switcher() {
+    $("views").hidden = !near(active);
     fill($("views"), ...Object.entries(VIEWS).map(([k, v]) => h("button", {
       type: "button", "aria-pressed": String(!!active && k === active.view), disabled: !active,
-      title: k === "3d" ? "The whole project in 3D" : "The change, hop by hop",
+      title: k === "3d" ? (active && active.spec ? "In 3D" : "The whole project in 3D") : "Hop by hop",
       onclick: () => {
         if (!active) return;
         active.view = k;
@@ -425,7 +431,7 @@
 
   addEventListener("hashchange", () => {
     const main = tabs[0];
-    if (main && main.following) { main.following = null; main.stale = true; }
+    if (main && main.following) { main.following = null; main.view = "3d"; main.stale = true; }
     draw();
   });
   UI.keys(step);
