@@ -242,6 +242,120 @@ def findings(ctx) -> list[Finding]:
     return ctx._polyglot_findings
 
 
+# -- Fortran: a routine passed as an argument ------------------------------------------------
+_FIXED_FORM = (".f", ".for", ".f77", ".ftn", ".fpp", ".inc", ".fi", ".fh")
+
+
+def _fortran_statements(text: str, fixed: bool) -> list[tuple[int, str]]:
+    """``(first line, statement)`` with comments dropped and continuation lines joined."""
+    out: list[tuple[int, str]] = []
+    pending = False
+    for no, line in enumerate(text.splitlines(), 1):
+        if fixed:
+            if not line.strip() or line[:1] in "cC*!dD":
+                continue
+            body = line[6:72]
+            if len(line) > 5 and line[5] not in " 0" and out:
+                out[-1] = (out[-1][0], out[-1][1] + " " + body)
+                continue
+            out.append((no, body))
+        else:
+            body = line.split("!", 1)[0].rstrip()
+            if not body.strip():
+                continue
+            more = body.endswith("&")
+            body = body.rstrip("&").lstrip().lstrip("&")
+            if pending and out:
+                out[-1] = (out[-1][0], out[-1][1] + " " + body)
+            else:
+                out.append((no, body))
+            pending = more
+    return out
+
+
+def _call_args(stmt: str, name: str) -> list[str] | None:
+    """The actual arguments of ``CALL name(...)`` in ``stmt`` (any case), or None."""
+    import re
+    m = re.search(r"\bCALL\s+" + re.escape(name) + r"\s*\((.*)\)\s*$", stmt, re.I)
+    if not m:
+        return None
+    args, depth, cur = [], 0, ""
+    for ch in m.group(1):
+        if ch == "," and depth == 0:
+            args.append(cur.strip())
+            cur = ""
+            continue
+        depth += (ch == "(") - (ch == ")")
+        cur += ch
+    if cur.strip():
+        args.append(cur.strip())
+    return args
+
+
+def _through_procedure_arguments(g, target_id: str, hard: list, root: str, label, affects,
+                                 EdgeKind) -> list[Finding]:
+    """Calls made to ``target`` through a procedure argument, judged against its new signature.
+
+    ``CALL APPLY(INTRST, P, R, D, X)`` hands INTRST to APPLY, which runs it as ``CALL FN(P,
+    R, D, X)``. No call names INTRST there, so the call-site check alone passes it by, and a
+    Fortran 77 compiler never checks it either. This finds the parameter it lands in and every
+    call made through that parameter."""
+    target = g.nodes[target_id]
+    name = (target.name or "").lower()
+    out: list[Finding] = []
+    seen: set[tuple[str, int]] = set()
+
+    def source(path: str) -> str:
+        try:
+            return (Path(root) / path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+
+    for e in g.in_edges(target_id):
+        if not (e.meta or {}).get("procedure_argument"):
+            continue
+        for c in g.out_edges(e.src):
+            if c.kind is not EdgeKind.CALLS or c.lineno != e.lineno or c.dst not in g.nodes:
+                continue
+            callee = g.nodes[c.dst]
+            params = ((callee.meta or {}).get("arity") or {}).get("positional") or []
+            fixed = c.path.lower().endswith(_FIXED_FORM)
+            stmt = next((st for no, st in _fortran_statements(source(c.path), fixed)
+                         if no <= c.lineno and _call_args(st, callee.name) is not None
+                         and no >= c.lineno - 20), None)
+            args = _call_args(stmt, callee.name) if stmt else None
+            if not args:
+                continue
+            slots = [i for i, a in enumerate(args) if a.strip().lower() == name]
+            for k in slots:
+                if k >= len(params):
+                    continue
+                dummy = params[k]
+                cfixed = callee.path.lower().endswith(_FIXED_FORM)
+                for no, st in _fortran_statements(source(callee.path), cfixed):
+                    if not (callee.lineno <= no <= (callee.end_lineno or no)):
+                        continue
+                    inner = _call_args(st, dummy)
+                    if inner is None or (callee.path, no) in seen:
+                        continue
+                    site = {"positional": len(inner), "keywords": set(), "star": False,
+                            "dstar": False, "known": True, "handled": []}
+                    hits = [h for h in hard if affects(h, site, 0)]
+                    if hits:
+                        seen.add((callee.path, no))
+                        out.append(Finding(
+                            "signature-break", "critical",
+                            f"{label(g, callee.id)} calls {label(g, target_id)} through its "
+                            f"procedure argument {dummy.upper()} the old way: {hits[0]['text']}",
+                            callee.path, no,
+                            detail=(f"{label(g, e.src)} passes {target.name.upper()} to "
+                                    f"{callee.name.upper()} ({c.path}:{c.lineno}), which calls it "
+                                    f"as {dummy.upper()}. Fortran checks neither."),
+                            fix=(f"Pass a wrapper with the old argument list, or have "
+                                 f"{callee.name.upper()} pass the new argument.")))
+    return out
+
+
 def _findings(b: Mapped | None, a: Mapped | None) -> list[Finding]:
     from magellan_lite.polyglot.analyze.frontends import language_findings
     from magellan_lite.polyglot.core.diff import (ChangeKind, affects, call_shape, diff_graphs,
@@ -271,6 +385,12 @@ def _findings(b: Mapped | None, a: Mapped | None) -> list[Finding]:
                         detail="The call compiled against the old signature; it no longer "
                                "matches.",
                         fix="Update the call, or keep the old signature next to the new one."))
+            # passed as an argument (EXTERNAL INTRST; CALL APPLY(INTRST, ...)): the calls that
+            # matter are the ones made through the parameter, inside the routine it is passed to
+            if a and new.nodes.get(ch.node_id) is not None and \
+                    (new.nodes[ch.node_id].meta or {}).get("lang") == "fortran":
+                out += _through_procedure_arguments(new, ch.node_id, hard, a.root, label, affects,
+                                                    EdgeKind)
         # deleted, and code nobody edited still uses it
         elif ch.kind is ChangeKind.REMOVED and ch.breaks:
             root = a.root if a else None

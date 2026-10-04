@@ -348,6 +348,11 @@ def _replacer(pairs: list[tuple[str, str, str]]) -> Callable[[str], str]:
             continue
         esc = r"\s+".join(re.escape(p) for p in _REPL_SPLIT.split(old))
         word_like = re.fullmatch(r"[A-Za-z0-9_\-]+", old) is not None
+        if not mode and word_like and (old.endswith("-") or old.startswith("-")):
+            # A COBOL word can't begin or end with a hyphen, so ==ACCT-== can never match a
+            # whole word: it can only mean a prefix (==-BAL==, a suffix). The compilers that
+            # accept it treat it so; read as a whole word it silently renamed nothing.
+            mode = "LEADING" if old.endswith("-") else "TRAILING"
         if mode == "LEADING":
             rx = re.compile(r"(?<![A-Za-z0-9_\-])" + esc, re.I)
         elif mode == "TRAILING":
