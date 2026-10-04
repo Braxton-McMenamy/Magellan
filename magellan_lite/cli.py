@@ -1,12 +1,17 @@
 """Command line.
 
-    magellan-lite check [PATH] [--against git:HEAD] [--format text|json] [--fail-on block]
+    magellan-lite check [PATH] [--against git:HEAD] [--format text|json|markdown] [--fail-on block]
+    magellan-lite hook install [PATH] [--force]       check before every commit
+    magellan-lite brief [PATH] [--against git:HEAD] [--format json|text] [--limit 8]
     magellan-lite rules
     magellan-lite share [PATH] [--remote origin]      publish your work in progress
     magellan-lite team  [PATH] [--remote origin]      check it against your teammates'
+    magellan-lite mcp   [PATH]                        the tools above, for an AI agent (MCP)
 
-``check`` exits 1 when the verdict reaches ``--fail-on`` (default ``block``), so it can gate
-a commit; 2 when it cannot run (not a git repository, no commits yet).
+``check`` and ``brief`` exit 1 when the verdict reaches ``--fail-on`` (default ``block``), so
+they can gate a commit; 2 when they cannot run (not a git repository, no commits yet).
+``check`` reads the project's settings from pyproject.toml's ``[tool.magellan-lite]``
+(settings.py); a flag on the command line beats them.
 """
 
 from __future__ import annotations
@@ -32,11 +37,24 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("path", nargs="?", default=".", help="the project (default: here)")
     c.add_argument("--against", default="git:HEAD", metavar="BASELINE",
                    help="git:REV, or a directory holding the old version (default: git:HEAD)")
-    c.add_argument("--format", choices=("text", "json"), default="text")
-    c.add_argument("--fail-on", choices=(*VERDICTS[1:], "never"), default="block",
-                   help="exit 1 when the verdict is at least this (default: block)")
+    c.add_argument("--format", choices=("text", "json", "markdown"), default="text",
+                   help="markdown: the checklist as a GitHub task list, for a pull request")
+    c.add_argument("--fail-on", choices=(*VERDICTS[1:], "never"), default=None,
+                   help="exit 1 when the verdict is at least this (default: block, or fail-on "
+                        "in pyproject.toml's [tool.magellan-lite])")
     c.add_argument("--map", action="store_true",
                    help="with --format json: add the code map the editor and website draw")
+
+    b = sub.add_parser("brief", help="the check, cut down for an AI agent: the verdict, what "
+                                     "to fix first, files to re-read, tests to run")
+    b.add_argument("path", nargs="?", default=".", help="the project (default: here)")
+    b.add_argument("--against", default="git:HEAD", metavar="BASELINE",
+                   help="git:REV, or a directory holding the old version (default: git:HEAD)")
+    b.add_argument("--format", choices=("json", "text"), default="json")
+    b.add_argument("--limit", type=int, default=8, metavar="N",
+                   help="entries per list (default: 8)")
+    b.add_argument("--fail-on", choices=(*VERDICTS[1:], "never"), default="block",
+                   help="exit 1 when the verdict is at least this (default: block)")
 
     sub.add_parser("rules", help="list the checklist rules")
 
@@ -55,6 +73,11 @@ def build_parser() -> argparse.ArgumentParser:
     tm.add_argument("--fail-on", choices=(*VERDICTS[1:], "never"), default="block",
                     help="exit 1 when any combination's verdict is at least this")
 
+    m = sub.add_parser("mcp", help="a Model Context Protocol server on stdin/stdout, so an AI "
+                                   "agent can call brief, check, reach and the rest as tools")
+    m.add_argument("path", nargs="?", default=".",
+                   help="the project tools use when a call names none (default: here)")
+
     s = sub.add_parser("serve", help="the website and its live API on this computer")
     s.add_argument("--host", default="127.0.0.1",
                    help="127.0.0.1 (default) is this computer only; 0.0.0.0 lets other "
@@ -71,16 +94,12 @@ def build_parser() -> argparse.ArgumentParser:
                    help="trust X-Forwarded-For from a proxy on this computer, so rate limits "
                         "count each real client")
 
-    # TODO(qol): `--format markdown`: the checklist as a GitHub task list (`- [ ] **HIGH** ...`)
-    #   to paste into a PR. Write it in output.py next to text(). Done when a test checks that
-    #   every finding becomes one `- [ ]` line.
-    # TODO(qol): `magellan-lite hook install`: write .git/hooks/pre-commit running
-    #   `magellan-lite check --fail-on block` (write it with newline="\n": sh wants LF on
-    #   Windows too). Done when committing a blocking change in a test repo is refused.
-    # TODO(qol): settings from pyproject.toml `[tool.magellan-lite]`: fail-on, disabled rules,
-    #   excluded paths. Python 3.11+ has tomllib; on 3.10 fall back to defaults.
-    # TODO(qol): colour in the terminal (verdict in red/yellow/green), off when NO_COLOR is
-    #   set or output is not a terminal.
+    h = sub.add_parser("hook", help="run the check before every commit (git's pre-commit hook)")
+    h.add_argument("action", choices=("install",))
+    h.add_argument("path", nargs="?", default=".", help="the project (default: here)")
+    h.add_argument("--force", action="store_true",
+                   help="replace a pre-commit hook that is not Magellan Lite's (the old one is "
+                        "kept as pre-commit.bak)")
     return p
 
 
@@ -98,6 +117,14 @@ def main(argv: list[str] | None = None) -> int:
             kind = "file" if r.per_file else "change"
             print(f"{r.id:<34} {r.severity:<8} {kind:<6} {'blocking' if r.blocking else ''}")
         return 0
+
+    if args.command == "mcp":
+        from magellan_lite.mcp import serve as serve_mcp
+        return serve_mcp(args.path)
+
+    if args.command == "hook":
+        from magellan_lite.hook import install
+        return install(args.path, args.force)
 
     if args.command == "serve":
         from magellan_lite.server import serve
@@ -133,22 +160,38 @@ def main(argv: list[str] | None = None) -> int:
 
     from pathlib import Path
 
+    if args.command == "brief":
+        from magellan_lite import brief
+        try:
+            b = brief.brief(args.path, args.against, args.limit)
+        except (GitError, ValueError, OSError) as exc:
+            print(f"magellan-lite: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(b, indent=2) if args.format == "json" else brief.text(b))
+        return 1 if brief.fails(b, args.fail_on) else 0
+
+    from magellan_lite import settings
     from magellan_lite.engine import check_snapshots, load_before
-    from magellan_lite.output import text
+    from magellan_lite.output import markdown, text, wants_colour
     from magellan_lite.source import working_tree
     try:
         root = Path(args.path).resolve()
+        project = settings.load(root)               # pyproject.toml's [tool.magellan-lite]
         before, after = load_before(root, args.against), working_tree(root)
-        report = check_snapshots(before, after, root, args.against)
+        report = settings.apply(check_snapshots(before, after, root, args.against), project)
     except (GitError, ValueError, OSError) as exc:
         print(f"magellan-lite: {exc}", file=sys.stderr)
         return 2
+    for warning in project.warnings:
+        print(f"magellan-lite: {warning}", file=sys.stderr)
     if args.format == "json":
         out = report.to_dict()
         if args.map:
-            from magellan_lite.web import code_map
-            out["map"] = code_map(before, after, out)
+            from magellan_lite.web import PROJECT_NODES, code_map
+            out["map"] = code_map(before, after, out, PROJECT_NODES, whole=True)   # the whole project, for 3D
         print(json.dumps(out, indent=2))
+    elif args.format == "markdown":
+        print(markdown(report))
     else:
-        print(text(report))
-    return 1 if report.fails(args.fail_on) else 0
+        print(text(report, colour=wants_colour(sys.stdout)))
+    return 1 if report.fails(args.fail_on or project.fail_on or "block") else 0

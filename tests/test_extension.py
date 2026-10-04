@@ -22,6 +22,13 @@ class Extension(unittest.TestCase):
                  or _text(EXT / to) != _text(ROOT / src)]
         self.assertEqual(stale, [], "run: node editors/vscode/sync.js")
 
+    def test_saving_any_file_the_engine_reads_checks_again(self):
+        # lite.js keeps its own copy of the suffixes (no Python at activation): they must agree
+        import re
+        from magellan_lite.languages import SUFFIXES
+        block = re.search(r"const SUFFIXES = \[(.*?)\];", _text(EXT / "lite.js"), re.S).group(1)
+        self.assertEqual(set(re.findall(r'"([^"]+)"', block)), {".py", *SUFFIXES})
+
     @unittest.skipUnless(shutil.which("node"), "Node.js is not installed")
     def test_the_extensions_own_tests_pass(self):
         r = subprocess.run(["node", "--test", "test/*.test.js"], cwd=EXT,

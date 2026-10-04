@@ -17,6 +17,8 @@
   const rank = (inc) => (ORDER.includes(inc.name) ? ORDER.indexOf(inc.name) : ORDER.length);
   const incidents = data.filter((i) => i.story).sort((a, b) => rank(a) - rank(b));
   if (!incidents.length) return;
+  // the address that opens one story: index.html#incident=zune-2008 (see "the address" below)
+  const LINK = /^#incident=([A-Za-z0-9._-]{1,80})$/;
 
   const SCENES = [
     { id: "what", title: "What happened", ms: 9000 },
@@ -256,13 +258,18 @@
   let cur = 0, scene = 0, playing = !reduced(), visible = false, elapsed = 0, last = 0;
   let scenes = [];
 
-  function showIncident(i) {
+  // why: "visitor" (they picked it), "auto" (the player moved on), "start"
+  function showIncident(i, why = "auto") {
     cur = (i + incidents.length) % incidents.length;
     const inc = incidents[cur];
+    if (why === "visitor" || (why === "auto" && LINK.test(location.hash))) remember();
     tabs.forEach((t, j) => {
       t.classList.toggle("active", j === cur);
       t.setAttribute("aria-selected", String(j === cur));
     });
+    // on a narrow screen the tabs scroll sideways: keep the current one in sight
+    const strip = tabs[cur].parentElement, a = tabs[cur].getBoundingClientRect(), s = strip.getBoundingClientRect();
+    if (a.left < s.left || a.right > s.right) strip.scrollLeft += a.left - s.left - 8;
     map = null;
     stage.innerHTML = SCENES.map((s) => `<section class="scene scene-${s.id}" data-scene="${s.id}"
       aria-label="${esc(s.title)}">${BUILD[s.id](inc)}</section>`).join("");
@@ -285,9 +292,9 @@
   const duration = () => (SCENES[scene].id === "reach" && map
     ? Math.max(SCENES[scene].ms, map.duration() + 3500) : SCENES[scene].ms);
 
-  function advance(dir) {
-    if (scene + dir >= SCENES.length) return showIncident(cur + 1);
-    if (scene + dir < 0) { showIncident(cur - 1); return showScene(SCENES.length - 1); }
+  function advance(dir, why = "auto") {
+    if (scene + dir >= SCENES.length) return showIncident(cur + 1, why);
+    if (scene + dir < 0) { showIncident(cur - 1, why); return showScene(SCENES.length - 1); }
     showScene(scene + dir);
   }
 
@@ -314,27 +321,55 @@
     const tab = e.target.closest(".story-tab");
     const step = e.target.closest("[data-scene]");
     const act = e.target.closest("[data-act]");
-    if (tab) showIncident(Number(tab.dataset.i));
+    if (tab) showIncident(Number(tab.dataset.i), "visitor");
     else if (step && step.tagName === "BUTTON") showScene(Number(step.dataset.scene));
     else if (act) {
       const a = act.dataset.act;
       if (a === "play") setPlaying(!playing);
-      else advance(a === "next" ? 1 : -1);
+      else advance(a === "next" ? 1 : -1, "visitor");
     }
   });
   root.addEventListener("keydown", (e) => {
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       if (e.target.closest(".story-tabs")) return;
-      advance(e.key === "ArrowRight" ? 1 : -1);
+      advance(e.key === "ArrowRight" ? 1 : -1, "visitor");
     }
   });
   new IntersectionObserver(([en]) => { visible = en.isIntersecting; },
     { threshold: 0.35 }).observe(root);
 
-  // TODO(site): open on one incident from the address, e.g. index.html#incident=zune-2008, so
-  //   the presenter can jump straight to a story (read location.hash here, find the incident
-  //   by name, showIncident(i), and scroll root into view). Done when the link opens there.
+  // -- the address ---------------------------------------------------------------------------
+  // index.html#incident=zune-2008 opens the player on that story, so a presenter can jump
+  // straight to it; picking another incident puts that one in the address, ready to share.
+  // The page's own anchors (#try, #checklist) are left alone: the player rewrites the address
+  // only when the visitor picks an incident, or when the address already names one.
+  function linked() {
+    const m = location.hash.match(LINK);
+    return m ? incidents.findIndex((inc) => inc.name === m[1]) : -1;
+  }
+  function remember() {
+    const want = `#incident=${incidents[cur].name}`;
+    if (location.hash !== want) history.replaceState(history.state, "", want);
+  }
+  function openLinked(smooth) {
+    const i = linked();
+    if (i < 0) return false;
+    showIncident(i, "start");
+    bringIntoView(root, smooth && !reduced());
+    return true;
+  }
+  // scroll to just below the sticky nav (two rows tall on a phone); offsetTop, not the
+  // bounding box: the section may still be sliding in (.reveal)
+  function bringIntoView(el, smooth) {
+    let y = 0;
+    for (let n = el; n; n = n.offsetParent) y += n.offsetTop;
+    const nav = document.querySelector(".nav");
+    const top = Math.max(0, y - (nav ? nav.offsetHeight : 0) - 12);
+    try { scrollTo({ top, behavior: smooth ? "smooth" : "instant" }); } catch { scrollTo(0, top); }
+  }
+  window.addEventListener("hashchange", () => openLinked(true));   // a link on this page
+
   setPlaying(playing);
-  showIncident(0);
+  if (!openLinked(false)) showIncident(0, "start");
   setInterval(tick, 100);
 })();

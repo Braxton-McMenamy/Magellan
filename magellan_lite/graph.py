@@ -97,6 +97,9 @@ def build_graph(snapshot: Snapshot, defs: dict[str, Definition],
         import_sites += sites
         for owner, fn, cls in _callables(tree, mod):
             edges += _Resolver(owner, fn, cls, mod, path, table, kinds, methods).edges()
+    if any(not p.endswith(".py") for p in snapshot.files):
+        from magellan_lite import languages           # C, Java, COBOL, ...: their own frontends
+        edges += languages.edges(snapshot)
     return CallGraph(edges, import_sites)
 
 

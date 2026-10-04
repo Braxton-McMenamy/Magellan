@@ -24,3 +24,4 @@ report.json
 
 # the full Magellan editor extension's local state (holds an access token)
 .magellan/
+editors/vscode/engine/

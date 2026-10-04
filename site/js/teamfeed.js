@@ -75,12 +75,9 @@ window.MagellanTeam = (() => {
         const got = await gh.refresh(force);
         onStatus("");
         if (got) {
-          if (!Object.keys(got.works).length) {
-            last = { repo: gh.full, info: gh.info, people: [], members: [], pairs: [], team: null, at: Date.now() };
-          } else {
-            const result = await check(got.base, got.works);
-            last = { repo: gh.full, info: gh.info, people: got.people, ...result, at: Date.now() };
-          }
+          // nobody sharing yet still gets the project's own map (team_live with no work)
+          const result = await check(got.base, got.works);
+          last = { repo: gh.full, info: gh.info, people: got.people, ...result, at: Date.now() };
           onResult(last, gh.rate);
         } else {
           onStatus(`Nothing new since ${new Date(last ? last.at : Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);

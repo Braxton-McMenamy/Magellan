@@ -64,6 +64,34 @@ class LoopWithoutProgress(unittest.TestCase):
             with self.subTest(code=code):
                 self.assertEqual(found("loop-without-progress", code), [])
 
+    def test_len_of_something_the_body_does_not_change_is_a_plain_value(self):
+        for code, names in [
+            ("def f(items):\n    i = 0\n    while i < len(items):\n        handle(items[i])\n",
+             "i or items"),                             # forgot i += 1
+            ("def f(items):\n    while len(items) > 0:\n        log(items[0])\n", "items"),
+            ("def f(self):\n    i = 0\n    while i < len(self.queue):\n"
+             "        total = self.queue[i]\n", "i or self.queue"),
+        ]:
+            with self.subTest(code=code):
+                [f] = found("loop-without-progress", code)
+                self.assertIn(f"nothing in it changes {names}", f.message)
+
+    def test_len_that_can_move_stays_quiet(self):
+        for code in [
+            "def f(items):\n    i = 0\n    while i < len(items):\n        handle(items[i])\n"
+            "        i += 1\n",
+            "def f(items):\n    while len(items) > 0:\n        items.pop()\n",          # shrinks
+            "def f(items):\n    while len(items) > 1:\n        items = items[1:]\n",     # rebound
+            "def f(items):\n    i = 0\n    while i < len(items):\n        trim(items)\n",  # handed
+            "def f(self):\n    while len(self.queue) > 0:\n        self.handle()\n",
+            "def f(self):\n    while len(self.buf) < 10:\n        time.sleep(0.1)\n",      # waits
+            "def f():\n    i = 0\n    while i < len(ITEMS):\n        work()\n",           # global
+            "def f():\n    i = 0\n    while i < len(load()):\n        pass\n",           # polls
+            "def f(items):\n    i = 0\n    while i < len(items) and ready(i):\n        pass\n",
+        ]:
+            with self.subTest(code=code):
+                self.assertEqual(found("loop-without-progress", code), [])
+
     def test_an_impossible_path_is_not_reported(self):
         code = ("def f(n: int):\n    while n > 10:\n        if n < 5:\n            pass\n"
                 "        else:\n            n -= 1\n")

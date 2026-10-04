@@ -103,6 +103,57 @@ class Check(unittest.TestCase):
             self.assertIn("cannot read revision 'HEAD'", str(ctx.exception))
 
 
+class Suppressions(unittest.TestCase):
+    """`# magellan: ignore[rule-id]` drops that rule's finding and counts it instead."""
+
+    def rules_at(self, report, line):
+        """The two rules these tests use (others may have their own say about the code)."""
+        return sorted(f.rule for f in report.findings if f.line == line
+                      and f.rule in ("mutable-default-argument", "compare-to-none"))
+
+    def test_the_comment_silences_exactly_the_rule_it_names(self):
+        with Project() as p:
+            p.commit({"m.py": "X = 1\n"})
+            # one line, two findings: the comment names one of them
+            p.write({"m.py": "def f(x=[]): return x == None"
+                             "  # magellan: ignore[mutable-default-argument]\n"})
+            r = p.check()
+            self.assertEqual(self.rules_at(r, 1), ["compare-to-none"])
+            self.assertEqual(r.suppressed, 1)
+            self.assertEqual(r.to_dict()["suppressed"], 1)
+            from magellan_lite.output import text
+            self.assertIn("1 suppressed", text(r).splitlines()[0])
+
+    def test_a_comment_line_just_above_and_a_list_of_rules(self):
+        with Project() as p:
+            p.commit({"m.py": "X = 1\n"})
+            p.write({"m.py": """
+                # magellan: ignore[compare-to-none, mutable-default-argument]
+                def f(x=[]): return x == None
+
+
+                Y = 2  # magellan: ignore[mutable-default-argument]
+                def g(x=[]):
+                    return x
+                """})
+            r = p.check()
+            self.assertEqual(self.rules_at(r, 2), [])               # both named, both silenced
+            # the line above is code, not a comment line: it does not reach down to g()
+            self.assertEqual(self.rules_at(r, 6), ["mutable-default-argument"])
+            self.assertEqual(r.suppressed, 2)
+
+    def test_no_comment_nothing_suppressed(self):
+        with Project() as p:
+            p.commit({"m.py": "X = 1\n"})
+            p.write({"m.py": "def f(x=[]):  # magellan: ignore[some-other-rule]\n"
+                             "    return x\n"})
+            r = p.check()
+            self.assertEqual(self.rules_at(r, 1), ["mutable-default-argument"])
+            self.assertEqual((r.suppressed, r.to_dict()["suppressed"]), (0, 0))
+            from magellan_lite.output import text
+            self.assertNotIn("suppressed", text(r))
+
+
 class Registry(unittest.TestCase):
     def tearDown(self):
         for name in [n for n in RULES if n.startswith("test-")]:

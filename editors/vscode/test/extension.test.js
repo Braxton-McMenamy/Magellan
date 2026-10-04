@@ -6,6 +6,7 @@ const path = require("path");
 const { activate } = require("../extension");
 
 const ROOT = path.resolve("/project");
+const EXTENSION = path.resolve(__dirname, "..");        // editors/vscode: the repo's engine is two up
 
 const CHECK = {
   verdict: "block", changes: [{ kind: "signature", name: "sensor.channel.parse_record" }],
@@ -19,13 +20,14 @@ const TEAM = [{ name: "braxton", verdict: "block", findings: [
 /** Just enough of VS Code for the extension to run, recording what it was asked to do. */
 function fakeVscode(settings = {}) {
   const seen = { commands: {}, diagnostics: {}, messages: [], warnings: [], updates: [], answer: undefined,
-                 onSave: null, onConfig: null, trees: {}, context: {} };
+                 onSave: null, onConfig: null, trees: {}, views: {}, context: {}, opened: [] };
   class Range { constructor(...a) { this.a = a; } }
   class Diagnostic { constructor(range, message, severity) { Object.assign(this, { range, message, severity }); } }
   class ThemeColor { constructor(id) { this.id = id; } }
   class EventEmitter { constructor() { this.event = () => ({ dispose() {} }); } fire() {} }
+  class MarkdownString { constructor(value = "") { this.value = value; } }
   const vscode = {
-    seen, Range, Diagnostic, ThemeColor, EventEmitter,
+    seen, Range, Diagnostic, ThemeColor, EventEmitter, MarkdownString,
     TreeItem: class { constructor(label, collapsibleState) { Object.assign(this, { label, collapsibleState }); } },
     TreeItemCollapsibleState: { None: 0, Collapsed: 1, Expanded: 2 },
     ThemeIcon: class { constructor(id, color) { Object.assign(this, { id, color }); } },
@@ -33,7 +35,8 @@ function fakeVscode(settings = {}) {
     Position: class { constructor(l, c) { this.l = l; this.c = c; } },
     DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
     StatusBarAlignment: { Left: 1 }, ViewColumn: { Beside: -2 }, ConfigurationTarget: { Global: 1, Workspace: 2 },
-    Uri: { file: (p) => ({ fsPath: p, toString: () => p }) },
+    Uri: { file: (p) => ({ fsPath: p, toString: () => p }), parse: (u) => ({ toString: () => u }) },
+    env: { openExternal: async (uri) => { seen.opened.push(uri.toString()); return true; } },
     workspace: {
       workspaceFolders: [{ uri: { fsPath: ROOT } }],
       getConfiguration: () => ({
@@ -49,7 +52,10 @@ function fakeVscode(settings = {}) {
       createStatusBarItem: () => (seen.status = { text: "", show() {}, hide() {}, dispose() {} }),
       showInformationMessage: (m) => seen.messages.push(m),
       showWarningMessage: (m) => { seen.warnings.push(m); return Promise.resolve(seen.answer); },
-      registerTreeDataProvider: (id, provider) => { seen.trees[id] = provider; return { dispose() {} }; },
+      createTreeView: (id, { treeDataProvider }) => {
+        seen.trees[id] = treeDataProvider;
+        return (seen.views[id] = { dispose() {} });
+      },
       registerFileDecorationProvider: (p) => { seen.badges = p; return { dispose() {} }; },
     },
     languages: {
@@ -67,15 +73,24 @@ function fakeVscode(settings = {}) {
   return vscode;
 }
 
-/** A fake `python -m magellan_lite ...`: answers by subcommand. */
-function fakePython(answers) {
+/** The subcommand of a `python [-3] -m magellan_lite <sub> ...` call. */
+const sub = (args) => args[args.indexOf("magellan_lite") + 1];
+
+/** A fake Python 3.12 (and git): `-c` (asking its version) says "3 12", `python -m
+ *  magellan_lite <sub>` answers by subcommand, `git remote -v` with `answers.git`. Set
+ *  `version` to make every interpreter older, or null to have none at all. */
+function fakePython(answers, { version = "3 12" } = {}) {
   const calls = [];
   const execFile = (exe, args, opts, cb) => {
-    calls.push({ exe, args, cwd: opts.cwd });
-    const a = answers[args[2]];
+    calls.push({ exe, args, cwd: opts.cwd, env: opts.env });
+    let a;
+    if (exe === "git") a = answers.git === undefined ? new Error("not a git repository") : answers.git;
+    else if (args.includes("-c")) a = version === null ? Object.assign(new Error("not found"), { code: "ENOENT" }) : version;
+    else a = answers[sub(args)];
     setImmediate(() => (a instanceof Error ? cb(a, "", a.stderr || "") : cb(null, typeof a === "string" ? a : JSON.stringify(a), "")));
   };
-  return { execFile, calls };
+  const checks = () => calls.filter((c) => c.exe !== "git" && !c.args.includes("-c"));
+  return { execFile, calls, checks };
 }
 
 test("opening a folder checks it: problems on the right lines, the verdict in the status bar", async () => {
@@ -83,8 +98,8 @@ test("opening a folder checks it: problems on the right lines, the verdict in th
   const py = fakePython({ check: CHECK });
   const ext = activate({ subscriptions: [], extensionPath: __dirname }, { vscode, execFile: py.execFile });
   await ext.first;
-  assert.equal(py.calls[0].exe, "py");
-  assert.equal(py.calls[0].cwd, ROOT);
+  assert.equal(py.checks()[0].exe, "py");                 // the setting, when someone sets one
+  assert.equal(py.checks()[0].cwd, ROOT);
   const [d] = vscode.seen.diagnostics["magellan-lite"][path.join(ROOT, "sensor/collector.py")];
   assert.deepEqual(d.range.a, [10, 0, 10, 10000]);
   assert.equal(d.severity, vscode.DiagnosticSeverity.Error);
@@ -110,7 +125,7 @@ test("without Magellan Lite installed, the status bar says how to fix it", async
     { vscode, execFile: fakePython({ check: missing }).execFile });
   await ext.first;
   assert.equal(vscode.seen.status.text, "$(alert) Magellan Lite");
-  assert.match(vscode.seen.status.tooltip, /pip install -e/);
+  assert.match(vscode.seen.status.tooltip, /missing Magellan Lite's engine/);
 });
 
 test("the sidebar lists the checklist, what the change reaches, and the team", async () => {
@@ -148,7 +163,7 @@ test("when Python can't run Magellan Lite, the sidebar says so", async () => {
 
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 const saved = (vscode) => vscode.seen.onSave({ languageId: "python" });
-const shares = (py) => py.calls.filter((c) => c.args[2] === "share").length;
+const shares = (py) => py.calls.filter((c) => sub(c.args) === "share").length;
 
 test("saving shares nothing unless Share On Save is on", async () => {
   const vscode = fakeVscode();
@@ -175,7 +190,8 @@ test("Share On Save: a burst of saves is one share, and never more than one per 
   assert.equal(shares(py), 1);                       // too soon after the last one: waits...
   await pause(160);
   assert.equal(shares(py), 2);                       // ...and then goes
-  assert.deepEqual(py.calls.find((c) => c.args[2] === "share").args, ["-m", "magellan_lite", "share", "."]);
+  const args = py.calls.find((c) => sub(c.args) === "share").args;
+  assert.deepEqual(args.slice(args.indexOf("-m")), ["-m", "magellan_lite", "share", "."]);
   assert.equal(vscode.seen.messages.length, 0);      // quiet when it works
 });
 
@@ -211,10 +227,94 @@ test("turning Share On Save on says who can read the work, and can turn it back 
   assert.equal(settings.shareOnSave, false);
 });
 
-test("the status bar is red on a block (TODO(faidh) 1)", { skip: "TODO(faidh) 1: status bar colours" }, async () => {
+test("nobody configures a Python: the extension finds one and brings its own engine", async () => {
+  const vscode = fakeVscode();                           // no magellanLite.pythonPath setting
+  const py = fakePython({ check: CHECK });
+  const ext = activate({ subscriptions: [], extensionPath: EXTENSION }, { vscode, execFile: py.execFile });
+  await ext.first;
+  const [probe] = py.calls.filter((c) => c.args.includes("-c"));
+  assert.equal(probe.exe, process.platform === "win32" ? "py" : "python3");
+  const run = py.checks()[0];
+  assert.equal(run.exe, probe.exe);
+  assert.deepEqual(run.args.slice(run.args.indexOf("-m"), run.args.indexOf("-m") + 3), ["-m", "magellan_lite", "check"]);
+  // the engine goes first: the bundled engine/ when it was packaged, else this repository's
+  const engine = require("../python").engineDir(EXTENSION);
+  assert.ok([path.join(EXTENSION, "engine"), path.resolve(EXTENSION, "..", "..")].includes(engine));
+  assert.equal(run.env.PYTHONPATH.split(path.delimiter)[0], engine);
+  assert.equal(vscode.seen.status.text, "$(error) Magellan Lite: block (1)");
+});
+
+test("an old Python is passed over, and with none at all the sidebar says how to get one", async () => {
   const vscode = fakeVscode();
-  const ext = activate({ subscriptions: [], extensionPath: __dirname },
+  const ext = activate({ subscriptions: [], extensionPath: EXTENSION },
+    { vscode, execFile: fakePython({ check: CHECK }, { version: "3 8" }).execFile });
+  await ext.first;
+  assert.equal(vscode.seen.context["magellanLite.state"], "nopython");
+  assert.match(vscode.seen.status.tooltip, /needs Python 3\.10 or newer; .* is Python 3\.8/);
+
+  const none = fakeVscode();
+  await activate({ subscriptions: [], extensionPath: EXTENSION },
+    { vscode: none, execFile: fakePython({ check: CHECK }, { version: null }).execFile }).first;
+  assert.equal(none.seen.context["magellanLite.state"], "nopython");
+  assert.match(none.seen.status.tooltip, /none was found/);
+});
+
+test("the workspace's GitHub repository is found from git, and the Team suite opens connected to it", async () => {
+  const vscode = fakeVscode();
+  const py = fakePython({ check: CHECK, git: "origin\tgit@github.com:Braxton-McMenamy/Magellan.git (fetch)\n"
+    + "origin\tgit@github.com:Braxton-McMenamy/Magellan.git (push)\n" });
+  const ext = activate({ subscriptions: [], extensionPath: EXTENSION }, { vscode, execFile: py.execFile });
+  await ext.first;
+  assert.equal(ext.state.repo.slug, "Braxton-McMenamy/Magellan");
+  const [top] = vscode.seen.trees["magellanLite.team"].getChildren();
+  assert.deepEqual([top.label, top.command.command], ["Braxton-McMenamy/Magellan", "magellanLite.openSuite"]);
+  await vscode.seen.commands["magellanLite.openSuite"]();
+  assert.deepEqual(vscode.seen.opened, ["https://magellan-code.pages.dev/suite.html?repo=Braxton-McMenamy%2FMagellan"]);
+});
+
+test("the sidebar shows the verdict and counts what needs a person on its icon", async () => {
+  const vscode = fakeVscode();
+  const ext = activate({ subscriptions: [], extensionPath: EXTENSION },
     { vscode, execFile: fakePython({ check: CHECK }).execFile });
   await ext.first;
+  const checklist = vscode.seen.views["magellanLite.checklist"];
+  assert.equal(checklist.description, "BLOCK · 1");
+  assert.equal(checklist.badge.value, 1);
+  const [f] = vscode.seen.trees["magellanLite.checklist"].getChildren();
+  assert.match(f.tooltip.value, /\*\*CRITICAL\*\* · `signature-break`/);
+});
+
+test("the status bar is red on a block, yellow on review, plain when ok", async () => {
+  const vscode = fakeVscode();
+  const answers = { check: CHECK };
+  const ext = activate({ subscriptions: [], extensionPath: __dirname },
+    { vscode, execFile: fakePython(answers).execFile });
+  await ext.first;
   assert.equal(vscode.seen.status.backgroundColor.id, "statusBarItem.errorBackground");
+  answers.check = { ...CHECK, verdict: "review" };
+  await ext.check();
+  assert.equal(vscode.seen.status.backgroundColor.id, "statusBarItem.warningBackground");
+  answers.check = { ...CHECK, verdict: "ok", findings: [] };
+  await ext.check();
+  assert.equal(vscode.seen.status.backgroundColor, undefined);
+});
+
+test("showLow off hides low findings from Problems and the Checklist; turning it on needs no new check", async () => {
+  const settings = { showLow: false };
+  const vscode = fakeVscode(settings);
+  const low = { rule: "debug-leftover", severity: "low", path: "sensor/api.py", line: 3, message: "print() left in" };
+  const py = fakePython({ check: { ...CHECK, findings: [...CHECK.findings, low] } });
+  const ext = activate({ subscriptions: [], extensionPath: __dirname }, { vscode, execFile: py.execFile });
+  await ext.first;
+  const files = () => Object.keys(vscode.seen.diagnostics["magellan-lite"]).sort();
+  const rules = () => vscode.seen.trees["magellanLite.checklist"].getChildren().map((t) => t.label);
+  assert.deepEqual(files(), [path.join(ROOT, "sensor/collector.py")]);
+  assert.deepEqual(rules(), ["signature-break"]);
+  assert.equal(vscode.seen.views["magellanLite.checklist"].description, "BLOCK · 1");
+
+  settings.showLow = true;
+  vscode.seen.onConfig({ affectsConfiguration: (k) => k === "magellanLite.showLow" });
+  assert.deepEqual(files(), [path.join(ROOT, "sensor/api.py"), path.join(ROOT, "sensor/collector.py")].sort());
+  assert.deepEqual(rules(), ["signature-break", "debug-leftover"]);
+  assert.equal(py.checks().length, 1);                   // the last report again, not a new check
 });

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -67,10 +68,6 @@ def check_snapshots(before: Snapshot, after: Snapshot, root: Path, against: str)
         report.findings += [f for f in found if in_spans(spans, path, f.line)]
         report.errors += errors
 
-    # TODO(qol): inline suppressions. A finding whose line (or the line above) carries
-    #   `# magellan: ignore[rule-id]` is dropped here and counted instead ("1 suppressed").
-    #   Done when: tests/test_engine.py has a case where the comment silences exactly one rule.
-
     # the blast radius: what the change reaches that it did not touch (radius.py)
     graph = build_graph(after, after_defs, before_defs)
     report.affected = blast_radius(changes, graph, after_defs)
@@ -83,9 +80,39 @@ def check_snapshots(before: Snapshot, after: Snapshot, root: Path, against: str)
         except Exception as exc:                    # noqa: BLE001 - reported, not hidden
             report.errors.append(f"rule {r.id} failed: {type(exc).__name__}: {exc}")
 
+    kept = [f for f in report.findings if not suppressed(after, f)]
+    report.suppressed = len(report.findings) - len(kept)
+    report.findings = kept
+
     report.errors += sorted(after.errors.values())
+    if any(not p.endswith(".py") for p in after.files):
+        from magellan_lite import languages
+        report.errors += languages.errors(after)
     report.findings.sort(key=lambda f: (f.rank, f.path, f.line, f.rule))
     return report
+
+
+#: ``# magellan: ignore[rule-id]``, or several ids: ``ignore[rule-a, rule-b]``
+_IGNORE = re.compile(r"#\s*magellan:\s*ignore\[([^\]]*)\]")
+
+
+def suppressed(after: Snapshot, f: Finding) -> bool:
+    """Is ``f`` silenced by an ignore comment naming its rule, at the end of its own line or
+    on a comment line just above it? A comment silences only the rules it names."""
+    source = after.files.get(f.path)
+    if source is None or f.line < 1 or "magellan:" not in source:
+        return False
+    lines = source.splitlines()
+    for n in (f.line, f.line - 1):
+        if not 1 <= n <= len(lines):
+            continue
+        line = lines[n - 1]
+        if n < f.line and not line.lstrip().startswith("#"):
+            continue                        # the line above counts only when it is a comment
+        for m in _IGNORE.finditer(line):
+            if f.rule in {r.strip() for r in m.group(1).split(",")}:
+                return True
+    return False
 
 
 def _with_fix(f: Finding, fix: str) -> Finding:

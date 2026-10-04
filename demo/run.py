@@ -8,7 +8,7 @@ per change (see its incident.json). For every change, the runner asks what a pre
 would have said, and marks each expected rule:
 
     caught    the rule fired
-    waiting   nobody has written that rule yet -- see TODO(checklist) in magellan_lite/rules
+    waiting   nobody has written that rule yet: add it in magellan_lite/rules/
     MISSED    the rule exists but stayed quiet: a bug to fix
 
 The website shows the same results, as an animated story per incident:

@@ -20,6 +20,8 @@ class Report:
     affected: list[dict] = field(default_factory=list)
     #: files that did not parse, rules that crashed: reported, never hidden
     errors: list[str] = field(default_factory=list)
+    #: findings silenced by a ``# magellan: ignore[rule-id]`` comment: counted, not listed
+    suppressed: int = 0
 
     @property
     def verdict(self) -> str:
@@ -42,11 +44,6 @@ class Report:
             return False
         return VERDICTS.index(self.verdict) >= VERDICTS.index(fail_on)
 
-    # TODO(qol): a PR comment bot. A workflow in .github/workflows/ that runs
-    #   `magellan-lite check --against git:origin/main --format json` on every pull request and
-    #   posts the verdict and checklist as a comment (actions/github-script). The most visible
-    #   thing for the least code. Done when a test PR with a mutable default gets a comment.
-
     def to_dict(self) -> dict:
         return {
             "verdict": self.verdict,
@@ -57,4 +54,5 @@ class Report:
             "findings": [f.to_dict() for f in self.findings],
             "affected": self.affected,
             "errors": self.errors,
+            "suppressed": self.suppressed,
         }

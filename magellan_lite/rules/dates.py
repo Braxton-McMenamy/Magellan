@@ -6,11 +6,14 @@ certificate could not be created, and the failure cascaded through Azure's clust
 hours.
 
 Python fails the same way: ``date(2025, 2, 29)`` raises ValueError. So
-``d.replace(year=d.year + 1)`` and ``date(d.year + 1, d.month, d.day)`` pass every test on
-every day but one in four years. Quiet when the year moves by a multiple of 4 (a leap year
-again), inside a ``try`` that catches ValueError, and in a function that already deals with
-the day: it compares something with 29 or a ``.month`` with 2, or asks ``isleap`` or
-``monthrange``.
+``d.replace(year=d.year + 1)`` and ``date(d.year + 1, d.month, d.day)`` (or the same with
+keywords, ``date(year=..., month=..., day=...)``) pass every test on every day but one in
+four years. Quiet when the year moves by a multiple of 4 (a leap year again), when the month
+is a fixed one other than February, inside a ``try`` that catches ValueError, and in a
+function that already deals with the day: it compares something with 29 or a ``.month``
+with 2, or asks ``isleap`` or ``monthrange``. Date libraries that add a year for you
+(``relativedelta(years=1)``, arrow's and pendulum's ``.shift(years=1)``) fall back to
+February 28 by themselves, and are left alone.
 """
 
 from __future__ import annotations
@@ -59,7 +62,10 @@ def _risky(call: ast.Call):
                 return None
         return _year_offset(next((k.value for k in call.keywords if k.arg == "year"), None))
     name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
-    day = _arg(call, 2, "day")
+    # date(d.year + 1, d.month, d.day), or with keywords: date(year=..., month=..., day=...)
+    day, month = _arg(call, 2, "day"), _arg(call, 1, "month")
+    if isinstance(month, ast.Constant) and month.value != 2:
+        return None             # not February: that month has the same days every year
     if name in _CONSTRUCTORS and isinstance(day, ast.Attribute) and day.attr == "day":
         return _year_offset(_arg(call, 0, "year"))
     return None

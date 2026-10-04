@@ -187,11 +187,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "fabric/agent.py",
       "line": 4,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.54,
       "hops": 1,
-      "finding": false
+      "finding": false,
+      "unused": true
      },
      {
       "id": "fabric.certs.transfer_certificate_validity",
@@ -199,11 +201,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "fabric/certs.py",
       "line": 6,
       "kind": "function",
+      "lang": "python",
       "change": "body",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": true
+      "finding": true,
+      "unused": false
      }
     ],
     "edges": [
@@ -466,11 +470,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "waf/edge.py",
       "line": 4,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "waf.edge.handle_request",
@@ -478,11 +484,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "waf/edge.py",
       "line": 7,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.61,
       "hops": 2,
-      "finding": false
+      "finding": false,
+      "unused": true
      },
      {
       "id": "waf.rules.RULES",
@@ -490,11 +498,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "waf/rules.py",
       "line": 7,
       "kind": "constant",
+      "lang": "python",
       "change": "value",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": true
+      "finding": true,
+      "unused": false
      },
      {
       "id": "waf.rules.matching_rules",
@@ -502,11 +512,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "waf/rules.py",
       "line": 18,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.68,
       "hops": 1,
-      "finding": false
+      "finding": false,
+      "unused": false
      }
     ],
     "edges": [
@@ -899,11 +911,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "smars/flags.py",
       "line": 1,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "smars.main.on_parent_order",
@@ -911,11 +925,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "smars/main.py",
       "line": 5,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.54,
       "hops": 1,
-      "finding": false
+      "finding": false,
+      "unused": true
      },
      {
       "id": "smars.market.send_child",
@@ -923,11 +939,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "smars/market.py",
       "line": 1,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "smars.orders.ParentOrder",
@@ -935,11 +953,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "smars/orders.py",
       "line": 5,
       "kind": "class",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "smars.orders.ParentOrder.filled",
@@ -947,11 +967,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "smars/orders.py",
       "line": 9,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "smars.orders.ParentOrder.flags",
@@ -959,11 +981,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "smars/orders.py",
       "line": 8,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "smars.power_peg.power_peg",
@@ -971,11 +995,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "smars/power_peg.py",
       "line": 9,
       "kind": "function",
+      "lang": "python",
       "change": "body",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": true
+      "finding": true,
+      "unused": false
      },
      {
       "id": "smars.power_peg.track_cumulative",
@@ -983,11 +1009,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "smars/power_peg.py",
       "line": 5,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "smars.router.route",
@@ -995,11 +1023,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "smars/router.py",
       "line": 7,
       "kind": "function",
+      "lang": "python",
       "change": "body",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      }
     ],
     "edges": [
@@ -1606,11 +1636,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/__init__.py",
       "line": 3,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.api.handle_fast_upload",
@@ -1618,11 +1650,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/api.py",
       "line": 12,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.54,
       "hops": 1,
-      "finding": false
+      "finding": false,
+      "unused": true
      },
      {
       "id": "sensor.api.handle_legacy_upload",
@@ -1630,11 +1664,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/api.py",
       "line": 16,
       "kind": "function",
+      "lang": "python",
       "change": "removed",
       "removed": true,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.api.handle_upload",
@@ -1642,11 +1678,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/api.py",
       "line": 8,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.54,
       "hops": 1,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.api.weigh_one",
@@ -1654,11 +1692,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/api.py",
       "line": 21,
       "kind": "function",
+      "lang": "python",
       "change": "removed",
       "removed": true,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.channel.LAYOUT_V3",
@@ -1666,11 +1706,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/channel.py",
       "line": 3,
       "kind": "constant",
+      "lang": "python",
       "change": "added",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": true
      },
      {
       "id": "sensor.channel.LAYOUT_V4",
@@ -1678,11 +1720,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/channel.py",
       "line": 4,
       "kind": "constant",
+      "lang": "python",
       "change": "added",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.channel.parse_record",
@@ -1690,11 +1734,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/channel.py",
       "line": 7,
       "kind": "function",
+      "lang": "python",
       "change": "signature",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.channel.split_rows",
@@ -1702,11 +1748,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/channel.py",
       "line": 26,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.collector.collect",
@@ -1714,11 +1762,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/collector.py",
       "line": 7,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.85,
       "hops": 1,
-      "finding": true
+      "finding": true,
+      "unused": false
      },
      {
       "id": "sensor.collector.sweep",
@@ -1726,11 +1776,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/collector.py",
       "line": 17,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.77,
       "hops": 2,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.config.DEFAULT_MODE",
@@ -1738,11 +1790,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/config.py",
       "line": 7,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.config.MAX_BATCH",
@@ -1750,11 +1804,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/config.py",
       "line": 8,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.config.MODE_FAST",
@@ -1762,11 +1818,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/config.py",
       "line": 3,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.config.MODE_LEGACY",
@@ -1774,11 +1832,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/config.py",
       "line": 5,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": true
      },
      {
       "id": "sensor.config.MODE_SAFE",
@@ -1786,11 +1846,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/config.py",
       "line": 4,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.main.run_agent",
@@ -1798,11 +1860,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/main.py",
       "line": 8,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.69,
       "hops": 3,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.pipeline._dispatch",
@@ -1810,11 +1874,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/pipeline.py",
       "line": 8,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.pipeline._legacy_weight",
@@ -1822,11 +1888,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/pipeline.py",
       "line": 22,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.pipeline.process",
@@ -1834,11 +1902,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/pipeline.py",
       "line": 27,
       "kind": "function",
+      "lang": "python",
       "change": "body",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.pipeline.process_fast",
@@ -1846,11 +1916,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/pipeline.py",
       "line": 36,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0.54,
       "hops": 1,
-      "finding": false
+      "finding": false,
+      "unused": true
      },
      {
       "id": "sensor.pipeline.process_legacy",
@@ -1858,11 +1930,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/pipeline.py",
       "line": 40,
       "kind": "function",
+      "lang": "python",
       "change": "removed",
       "removed": true,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.registry._ERRORS",
@@ -1870,11 +1944,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/registry.py",
       "line": 4,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.registry._SEEN",
@@ -1882,11 +1958,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/registry.py",
       "line": 3,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.registry.note_error",
@@ -1894,11 +1972,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/registry.py",
       "line": 12,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.registry.remember",
@@ -1906,11 +1986,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/registry.py",
       "line": 7,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "sensor.registry.seen_count",
@@ -1918,11 +2000,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "sensor/registry.py",
       "line": 16,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      }
     ],
     "edges": [
@@ -2355,11 +2439,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "therac/console.py",
       "line": 6,
       "kind": "class",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": true
      },
      {
       "id": "therac.console.TreatmentConsole.__init__",
@@ -2367,11 +2453,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "therac/console.py",
       "line": 7,
       "kind": "method",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "therac.console.TreatmentConsole.operator_edit",
@@ -2379,11 +2467,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "therac/console.py",
       "line": 12,
       "kind": "method",
+      "lang": "python",
       "change": "body",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": true
+      "finding": true,
+      "unused": false
      },
      {
       "id": "therac.console.TreatmentConsole.set_up_beam",
@@ -2391,11 +2481,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "therac/console.py",
       "line": 17,
       "kind": "method",
+      "lang": "python",
       "change": "body",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "therac.console.TreatmentConsole.start",
@@ -2403,11 +2495,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "therac/console.py",
       "line": 21,
       "kind": "method",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      }
     ],
     "edges": []
@@ -2687,11 +2781,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "zune/clock.py",
       "line": 4,
       "kind": "function",
+      "lang": "python",
       "change": "body",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": true
      },
      {
       "id": "zune.rtc.ORIGIN_YEAR",
@@ -2699,11 +2795,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "zune/rtc.py",
       "line": 3,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "zune.rtc.SECONDS_PER_DAY",
@@ -2711,11 +2809,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "zune/rtc.py",
       "line": 4,
       "kind": "constant",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "zune.rtc.days_since_origin",
@@ -2723,11 +2823,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "zune/rtc.py",
       "line": 11,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "zune.rtc.is_leap_year",
@@ -2735,11 +2837,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "zune/rtc.py",
       "line": 7,
       "kind": "function",
+      "lang": "python",
       "change": "",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": false
+      "finding": false,
+      "unused": false
      },
      {
       "id": "zune.rtc.year_from_days",
@@ -2747,11 +2851,13 @@ self.MAGELLAN_INCIDENTS = [
       "path": "zune/rtc.py",
       "line": 13,
       "kind": "function",
+      "lang": "python",
       "change": "added",
       "removed": false,
       "score": 0,
       "hops": 0,
-      "finding": true
+      "finding": true,
+      "unused": false
      }
     ],
     "edges": [

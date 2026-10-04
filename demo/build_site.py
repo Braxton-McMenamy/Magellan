@@ -10,7 +10,10 @@ shows is generated here, by the real engine:
     site/data/incidents.js   the famous failures, replayed: the story player and the scoreboard
     site/data/showcase.js    the hero's terminal output, the checklist, the three "Try it" examples
     site/data/engine.js      Magellan Lite's own source, which "Try it" and the Team suite run in
-                             the browser
+                             the browser: Python only
+    site/data/polyglot.js    the other languages' frontends (C, Java, Fortran, COBOL...), which
+                             the Team suite's worker loads only for a repository that has them
+    site/data/project.js     Magellan Lite's own code as one map: the Scene's first picture
     site/_headers            the security headers Cloudflare Pages sends (magellan_lite/security.py)
 """
 
@@ -42,6 +45,11 @@ INCIDENTS = HERE / "incidents"
 HERO = "sensor-signature-break"
 #: modules the browser never needs: git, the server, the command line
 NOT_IN_BROWSER = {"__main__.py", "cli.py", "git.py", "incidents.py", "server.py", "team.py"}
+#: the vendored frontends live in magellan_lite/polyglot/; of them, the Python-only engine
+#: needs just the Python 2 reader: source.Snapshot.tree tries it on any .py file that doesn't
+#: parse as Python 3 (half-typed code in Try it, too), and these are what it imports
+PY2_READER = ("polyglot/__init__.py", "polyglot/core/__init__.py", "polyglot/core/model.py",
+              "polyglot/python/__init__.py", "polyglot/python/py2.py")
 
 
 # -- the famous failures ----------------------------------------------------------------------
@@ -191,14 +199,54 @@ def examples() -> list[dict]:
 
 # -- the engine, for the browser ------------------------------------------------------------
 def engine() -> dict:
+    """Magellan Lite for Python: the package without the other languages' frontends."""
     pkg = ROOT / "magellan_lite"
     files = {}
     for p in sorted(pkg.rglob("*.py")):
+        rel = p.relative_to(pkg)
         if p.parent == pkg and p.name in NOT_IN_BROWSER:
             continue
+        if rel.parts[0] == "polyglot" and rel.as_posix() not in PY2_READER:
+            continue                           # polyglot(): loaded only when it is needed
         # read_text turns CRLF into LF: the bundle is the same on every OS
         files[p.relative_to(ROOT).as_posix()] = p.read_text(encoding="utf-8")
     return {"version": __version__, "files": files}
+
+
+def polyglot() -> dict:
+    """The other languages' frontends (magellan_lite/polyglot/, 26k lines), all but what
+    engine() already carries, with the data files they read (the TypeScript extractor, the
+    C++ legacy headers: pyproject.toml's package-data). The Team suite's worker
+    (site/js/engine-worker.js) loads them on top of the engine only when a repository has
+    files in those languages. C++ and TypeScript still need libclang and Node.js, which a
+    browser doesn't have: those two are skipped there, and the report says so."""
+    pkg = ROOT / "magellan_lite"
+    files = {}
+    for p in sorted((pkg / "polyglot").rglob("*")):
+        rel = p.relative_to(pkg)
+        if not p.is_file() or "__pycache__" in rel.parts or p.suffix in (".pyc", ".pyo")                 or rel.as_posix() in PY2_READER:
+            continue
+        files[p.relative_to(ROOT).as_posix()] = p.read_text(encoding="utf-8")
+    return {"version": __version__, "files": files}
+
+
+# -- the Scene's first picture ------------------------------------------------------------------
+def project() -> dict:
+    """Magellan Lite's own repository -- the package (without the vendored frontends), its tests
+    and the demo scripts -- mapped whole: what the Scene shows before anyone connects a
+    repository, so there is always something to turn around."""
+    from magellan_lite.web import PROJECT_NODES, code_map
+
+    def ours(p: Path) -> bool:
+        rel = p.relative_to(ROOT).parts
+        return rel[0] in ("magellan_lite", "tests", "demo") and "polyglot" not in rel \
+            and "incidents" not in rel and "__pycache__" not in rel
+    files = {p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8")
+             for p in sorted(ROOT.rglob("*.py")) if ours(p)}
+    snap = Snapshot(files, "magellan_lite")
+    report = check_snapshots(snap, snap, ROOT, "itself").to_dict()
+    return {"name": "Magellan Lite", "repo": "Braxton-McMenamy/Magellan",
+            "files": len(files), "map": code_map(snap, snap, report, PROJECT_NODES, whole=True)}
 
 
 # -- writing ------------------------------------------------------------------------------------
@@ -219,6 +267,11 @@ def build() -> dict[Path, str]:
                                   "the hero, the checklist and the Try-it examples"),
         DATA / "engine.js": _js("MAGELLAN_ENGINE", engine(),
                                 "Magellan Lite's source, run in the browser by Try it", None),
+        DATA / "polyglot.js": _js("MAGELLAN_POLYGLOT", polyglot(),
+                                  "the other languages' frontends, for the Team suite's worker",
+                                  None),
+        DATA / "project.js": _js("MAGELLAN_PROJECT", project(),
+                                 "Magellan Lite's own code: the Scene's first picture", None),
         SITE / "_headers": pages_headers(SITE),
     }
 

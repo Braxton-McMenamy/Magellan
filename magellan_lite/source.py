@@ -20,15 +20,20 @@ def is_skipped_dir(name: str) -> bool:
     return name in SKIP_DIRS or name.startswith(".")
 
 
-def iter_python_files(root: Path) -> list[str]:
-    """Every ``.py`` file under ``root``, as sorted forward-slash paths relative to it."""
+def iter_source_files(root: Path) -> list[str]:
+    """Every source file under ``root`` that Lite maps (Python, and the languages in
+    languages.py), as sorted forward-slash paths relative to it."""
+    from magellan_lite.languages import is_source
     out: list[str] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if not is_skipped_dir(d))
         for name in sorted(filenames):
-            if name.endswith(".py"):
+            if is_source(name):
                 out.append(Path(dirpath, name).relative_to(root).as_posix())
     return out
+
+
+iter_python_files = iter_source_files       # the old name
 
 
 def decode(data: bytes) -> str:
@@ -56,18 +61,32 @@ class Snapshot:
         self._trees: dict[str, ast.Module | None] = {}
 
     def tree(self, path: str) -> ast.Module | None:
-        """The file's syntax tree, or None when it does not parse (the error is kept)."""
+        """A Python file's syntax tree, or None when it does not parse (the error is kept).
+        Python 2 is read too, rewritten into its Python 3 spelling line for line (the full
+        Magellan's py2.py), so old code waiting for its upgrade is still on the map. Other
+        languages have no Python tree: None, and no error."""
         if path not in self._trees:
+            if not path.endswith(".py"):
+                self._trees[path] = None
+                return None
             try:
                 self._trees[path] = ast.parse(self.files[path], filename=path)
             except SyntaxError as exc:
-                self._trees[path] = None
-                self.errors[path] = f"{path}:{exc.lineno or 0}: {exc.msg}"
+                self._trees[path] = self._python2(path)
+                if self._trees[path] is None:
+                    self.errors[path] = f"{path}:{exc.lineno or 0}: {exc.msg}"
         return self._trees[path]
+
+    def _python2(self, path: str) -> ast.Module | None:
+        from magellan_lite.polyglot.python.py2 import to_python3
+        try:
+            return ast.parse(to_python3(self.files[path]), filename=path)
+        except (SyntaxError, ValueError):
+            return None
 
 
 def working_tree(root: str | Path) -> Snapshot:
     """The project as it is on disk now."""
     root = Path(root)
-    files = {rel: decode((root / rel).read_bytes()) for rel in iter_python_files(root)}
+    files = {rel: decode((root / rel).read_bytes()) for rel in iter_source_files(root)}
     return Snapshot(files, label=str(root))

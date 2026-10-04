@@ -82,6 +82,22 @@ h1 em { font-style: normal; color: var(--accent); }
   margin: 0; padding: 18px 20px; border-radius: var(--radius); overflow-x: auto;
   background: var(--code-bg); color: var(--code-text); font-size: .85rem; line-height: 1.55;
 }
+/* the Copy button on a code block (js/app.js) */
+.code-wrap { position: relative; }
+.code-wrap .code { padding-right: 76px; }
+.copy-button {
+  position: absolute; top: 8px; right: 8px; padding: 3px 10px; border-radius: 6px;
+  font: 600 .75rem/1.5 var(--font); color: var(--code-text); cursor: pointer;
+  background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .2);
+}
+.copy-button:hover { background: rgba(255, 255, 255, .16); }
+.copy-button:focus-visible { outline: 2px solid #f2a93b; outline-offset: 1px; }
+.copy-button.done { color: #4ac27a; border-color: currentColor; }
+.clipboard-box { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .t-dim { color: #7d8b9c; }
 .t-block { color: #ff6b5e; font-weight: 700; }
 

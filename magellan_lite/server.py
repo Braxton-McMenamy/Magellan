@@ -46,6 +46,7 @@ from pathlib import Path, PurePosixPath
 from urllib.parse import parse_qs, unquote, urlparse
 
 from magellan_lite import security
+from magellan_lite.languages import is_source
 
 SITE_DIR = Path(__file__).resolve().parent.parent / "site"
 PACKAGE_PARENT = Path(__file__).resolve().parent.parent      # what makes magellan_lite importable
@@ -90,7 +91,7 @@ def _files(value, side: str) -> dict[str, str]:
         raw = str(path).replace("\\", "/")
         p = PurePosixPath(raw)
         if (not isinstance(source, str) or len(raw) > MAX_PATH or not _PATH_OK.fullmatch(raw)
-                or p.is_absolute() or ".." in p.parts or not p.name.endswith(".py")):
+                or p.is_absolute() or ".." in p.parts or not is_source(p.name)):
             raise BadRequest(f'"{side}": each name must be a short relative .py path '
                              f'(letters, digits, _ - . /) with text source')
         out[str(p)] = source

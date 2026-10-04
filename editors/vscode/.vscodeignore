@@ -2,3 +2,5 @@ test/**
 sync.js
 shared.json
 *.vsix
+bundle.js
+**/__pycache__/**
