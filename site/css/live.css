@@ -228,55 +228,6 @@ button.button { font: inherit; font-weight: 600; cursor: pointer; }
 .all-results { margin: 20px 0 8px; }
 .all-results > summary { cursor: pointer; font-weight: 600; color: var(--muted); }
 
-/* -- the code map (map.js): on the dark stage and on the page ------------------------ */
-.map { display: block; width: 100%; height: auto; max-height: 440px; }
-.map-box { --map-bg: var(--surface); --map-text: var(--text); --map-dot: #9aa8b8; --map-edge: #9aa8b8; }
-.story-stage .map-box { --map-bg: #070c12; --map-text: #c9d4df; --map-dot: #5d6d80; --map-edge: #52637a; }
-.map .node, .map .edge { transition: opacity .35s ease; }
-.map.playing .node:not(.in), .map.playing .edge:not(.in) { opacity: 0; }
-.map .edge { fill: none; stroke: var(--map-edge); stroke-width: 1.3; opacity: .55; }
-.map .edge.reads { stroke-dasharray: 4 3; }
-.map .edge.guess { stroke-dasharray: 1 3; opacity: .35; }
-.map .edge.impact.lit {
-  stroke: var(--hot); stroke-width: 2.2; opacity: .95; stroke-dasharray: 6 5;
-  animation: flow .9s linear infinite;
-}
-@keyframes flow { to { stroke-dashoffset: 22; } }   /* toward the caller: impact runs backwards */
-.edge-arrow { fill: var(--map-edge); }
-.map .dot { fill: var(--map-dot); stroke: var(--map-bg); stroke-width: 2; transition: fill .4s; }
-.map .halo { fill: transparent; transform-box: fill-box; transform-origin: center; }
-.map .label {
-  font: 600 10px var(--font); fill: var(--map-text); text-anchor: middle;
-  paint-order: stroke; stroke: var(--map-bg); stroke-width: 3px; stroke-linejoin: round;
-}
-.map .score {
-  font: 700 9.5px var(--mono); fill: var(--hot); text-anchor: middle; opacity: 0; transition: opacity .4s;
-  paint-order: stroke; stroke: var(--map-bg); stroke-width: 3px;
-}
-.map .node.changed.lit .dot { fill: var(--accent); }
-.map .node.changed.lit .halo { fill: color-mix(in srgb, var(--accent) 25%, transparent); animation: grow 1.4s ease-out 2; }
-.map .node.removed .dot { fill: var(--map-bg); stroke: var(--accent); stroke-dasharray: 3 2; }
-.map .node.removed .label { text-decoration: line-through; opacity: .75; }
-.map .node.affected.lit .dot { fill: var(--hot); fill-opacity: var(--heat); }
-.map .node.affected.lit .halo { fill: rgba(255, 107, 94, .14); }
-.map .node.affected.lit .score { opacity: 1; }
-.map .badge { opacity: 0; transition: opacity .3s; }
-.map .badge circle { fill: #ff3b30; }
-.map .badge text { fill: #fff; font: 800 10px var(--font); text-anchor: middle; }
-.map .node.finding.lit .badge { opacity: 1; }
-.map .node.finding.lit .halo { stroke: #ff3b30; stroke-width: 2; animation: ring 1.5s ease-out infinite; }
-@keyframes grow { from { transform: scale(.4); } to { transform: scale(1); } }
-@keyframes ring { from { transform: scale(.5); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
-.map-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 6px 2px; color: var(--muted); font-size: .74rem; }
-.story-stage .map-legend { color: var(--stage-muted); }
-.lg { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 50%; vertical-align: -1px; }
-.lg.changed { background: var(--accent); }
-.lg.affected { background: var(--hot); }
-.lg.finding { border: 2px solid #ff3b30; }
-.lg.edge, .lg.reads { width: 16px; height: 0; border-radius: 0; border-top: 1.5px solid var(--map-edge); vertical-align: 3px; }
-.lg.reads { border-top-style: dashed; }
-.map-empty { color: var(--muted); padding: 20px; text-align: center; margin: 0; }
-
 /* -- the checklist ------------------------------------------------------------------- */
 .rule-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
 .rule-card { padding: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
@@ -410,6 +361,5 @@ button.button { font: inherit; font-weight: 600; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .js .reveal { opacity: 1; transform: none; transition: none; }
   .scene, .stamp, .issue-card, .ln { transition: none; }
-  .map .edge.impact.lit, .map .node.finding.lit .halo, .map .node.changed.lit .halo,
   .ln.hit.flash, .t-cursor, .verdict-big, .editor-wrap .band { animation: none; }
 }

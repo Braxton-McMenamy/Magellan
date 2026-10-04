@@ -122,7 +122,7 @@
       <div class="map-box"></div>
       <div class="reach-side">
         <p class="scene-lede">${a.length
-          ? `The change edits ${edited} definition${edited === 1 ? "" : "s"}. Its effect travels <em>backwards</em> through every caller: ${a.length} definition${a.length === 1 ? "" : "s"} nobody edited can break.`
+          ? `The change edits ${edited} definition${edited === 1 ? "" : "s"}. Its effect spreads to <em>whatever calls it</em>, then to their callers: ${a.length} definition${a.length === 1 ? "" : "s"} nobody edited can break.`
           : "Nothing else in the project calls the code this change edits."}</p>
         ${a.length ? `<ol class="reach-list">${a.slice(0, 4).map((x) => `<li>
           <b class="score" style="--heat:${0.3 + 0.7 * x.score}">${x.score.toFixed(2)}</b>

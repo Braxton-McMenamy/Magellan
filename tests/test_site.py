@@ -63,13 +63,37 @@ class SiteData(unittest.TestCase):
                     "'from m import f\\n\\n\\ndef g():\\n    return f(1)\\n'},\n"
                     "                   {'m.py': 'def f(x, y):\\n    return x\\n', 'u.py': "
                     "'from m import f\\n\\n\\ndef g():\\n    return f(1)\\n'})\n"
+                    "from magellan_lite.web import team_live\n"
+                    "t = team_live({'m.py': 'def f(x):\\n    return x\\n'},\n"
+                    "              {'a': {'m.py': 'def f(x, y):\\n    return x\\n'},\n"
+                    "               'b': {'m.py': 'def f(x):\\n    return x\\n', 'u.py': "
+                    "'from m import f\\n\\n\\ndef g():\\n    return f(1)\\n'}})\n"
                     "print(json.dumps([magellan_lite.__file__, r['verdict'],"
-                    " [f['rule'] for f in r['findings']]]))")
+                    " [f['rule'] for f in r['findings']], t['pairs'][0]['verdict']]))")
             out = subprocess.run([sys.executable, "-I", "-c", code, tmp], capture_output=True,
                                  text=True, check=True).stdout
-        where, verdict, rules = json.loads(out)
+        where, verdict, rules, together = json.loads(out)
         self.assertTrue(where.startswith(tmp))
         self.assertEqual((verdict, rules), ("block", ["signature-break"]))
+        self.assertEqual(together, "block")                 # the Team suite's check, too
+
+    def test_pages_sends_the_same_security_headers_as_the_server(self):
+        from magellan_lite import security
+        written = self.files[build_site.SITE / "_headers"].splitlines()
+        self.assertIn("/*", written)
+        for k, v in security.headers(build_site.SITE).items():
+            self.assertIn(f"  {k}: {v}", written)
+        csp = security.csp(build_site.SITE)
+        for needed in ("https://api.github.com", "https://raw.githubusercontent.com",
+                       "https://cdn.jsdelivr.net", "'wasm-unsafe-eval'", "worker-src 'self'"):
+            self.assertIn(needed, csp)
+
+    def test_every_page_shares_one_inline_script(self):
+        # the CSP allows inline scripts by hash: a second, different one would be blocked
+        from magellan_lite import security
+        pages = sorted(p.name for p in build_site.SITE.glob("*.html"))
+        self.assertEqual(pages, ["index.html", "scene.html", "suite.html"])
+        self.assertEqual(len(security.inline_script_hashes(build_site.SITE)), 1)
 
 
 if __name__ == "__main__":

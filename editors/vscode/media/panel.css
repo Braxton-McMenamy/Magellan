@@ -1,0 +1,43 @@
+/* The map panel, in VS Code's own theme colours. map.css (the website's) does the map. */
+:root {
+  --bg: var(--vscode-editor-background);
+  --surface: var(--vscode-editor-background);
+  --text: var(--vscode-foreground);
+  --muted: var(--vscode-descriptionForeground);
+  --border: var(--vscode-panel-border, rgba(128, 128, 128, .35));
+  --accent: var(--vscode-charts-orange, #f2a93b);
+  --hot: var(--vscode-charts-red, #ff6b5e);
+  --ok: var(--vscode-charts-green, #4ac27a);
+  --review: var(--vscode-charts-yellow, #f0b44c);
+  --block: var(--vscode-charts-red, #ff6b5e);
+  --font: var(--vscode-font-family);
+  --mono: var(--vscode-editor-font-family);
+}
+body { margin: 0; padding: 14px 18px; background: var(--bg); color: var(--text); font: 13px/1.5 var(--font); }
+.muted { color: var(--muted); }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.verdict {
+  padding: 2px 12px; border: 2px solid currentColor; border-radius: 8px;
+  font-weight: 800; text-transform: uppercase; letter-spacing: .06em;
+}
+.verdict.ok { color: var(--ok); }
+.verdict.review { color: var(--review); }
+.verdict.block { color: var(--block); }
+#graph { border: 1px solid var(--border); border-radius: 10px; padding: 6px; }
+h2 { margin: 16px 0 6px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+li p { margin: 2px 0 0 2px; }
+button {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0; cursor: pointer;
+  background: none; border: 0; color: var(--text); font: inherit; text-align: left;
+}
+button:hover .where { text-decoration: underline; }
+.where { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.sev {
+  padding: 0 7px; border: 1px solid currentColor; border-radius: 999px;
+  font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--muted);
+}
+.sev.critical, .sev.high { color: var(--block); }
+.sev.medium { color: var(--review); }
+.fix { color: var(--ok); }
+.reach b { color: var(--hot); font-family: var(--mono); }

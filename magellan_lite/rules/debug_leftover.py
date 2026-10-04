@@ -9,6 +9,11 @@ import ast
 from magellan_lite.findings import rule  # noqa: F401
 
 
+# TODO(starter): print() is a program's real output in a command-line tool: today this rule
+#   flags every print() in magellan_lite/cli.py (try `magellan-lite check` after editing it).
+#   Stay quiet for print() inside a function called `main`, in a file named cli.py or
+#   __main__.py, and for print(..., file=sys.stderr). Add a test for each case in
+#   tests/rules/test_debug_leftover.py, and keep the existing tests passing.
 @rule("debug-leftover", "low", fix="Remove it before committing (use logging for output).")
 def debug_leftover(tree: ast.Module, path: str):
     # 1. where print() is fine: inside `if __name__ == "__main__":` blocks

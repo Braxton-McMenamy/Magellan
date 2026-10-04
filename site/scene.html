@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scene · Magellan Lite</title>
+  <meta name="description" content="A change and everything it reaches, full screen: your team's work in progress, or a famous failure.">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/live.css">
+  <link rel="stylesheet" href="css/map.css">
+  <link rel="stylesheet" href="css/suite.css">
+  <script>document.documentElement.classList.add("js");</script>
+</head>
+<body class="scene-page">
+  <header class="nav">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◆</span> Magellan Lite</a>
+    <nav aria-label="Pages">
+      <a href="index.html">Home</a>
+      <a href="suite.html">Team suite</a>
+      <a href="scene.html" aria-current="page">Scene</a>
+    </nav>
+  </header>
+
+  <main class="scene-layout">
+    <nav class="scene-rail" aria-label="What to show">
+      <h2>Your team</h2>
+      <ul id="rail-team"></ul>
+      <h2>Famous failures</h2>
+      <ul id="rail-incidents"></ul>
+    </nav>
+
+    <section class="scene-main" aria-labelledby="scene-title">
+      <div class="scene-title">
+        <div>
+          <h1 id="scene-title">Scene</h1>
+          <p id="scene-sub"></p>
+        </div>
+        <div class="views" id="views" role="group" aria-label="View" hidden></div>
+      </div>
+      <div class="scene-stage"><div id="scene-map" class="map-box"></div></div>
+      <p class="scene-status" id="scene-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <aside class="scene-side" id="scene-side" aria-live="polite"></aside>
+  </main>
+
+  <script src="data/incidents.js"></script>
+  <script src="js/dom.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/github.js"></script>
+  <script src="js/teamfeed.js"></script>
+  <script src="js/scene.js"></script>
+</body>
+</html>

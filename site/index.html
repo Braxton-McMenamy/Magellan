@@ -7,6 +7,7 @@
   <meta name="description" content="Know what your change breaks before you commit it.">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/live.css">
+  <link rel="stylesheet" href="css/map.css">
   <script>document.documentElement.classList.add("js");</script>
   <!-- TODO(starter): a favicon (the little icon in the browser tab). Make a 64x64 PNG or an
        SVG of the ◆ logo, save it as site/favicon.svg (or .png), and add here:
@@ -21,6 +22,8 @@
       <a href="#checklist">Checklist</a>
       <a href="#try">Try it</a>
       <a href="#team">Team</a>
+      <a class="nav-page" href="suite.html">Team suite</a>
+      <a class="nav-page" href="scene.html">Scene</a>
     </nav>
   </header>
 
@@ -142,7 +145,9 @@
           <pre class="code">pip install -e .
 magellan-lite check            # against your last commit
 magellan-lite check --format json &gt; report.json
-magellan-lite serve --open     # this page, with a live API</pre>
+magellan-lite serve --open     # this page, with a live API
+magellan-lite share            # your work in progress, to your team
+magellan-lite team             # what only your work + theirs breaks</pre>
         </article>
         <article class="card">
           <h3>Read a report</h3>
@@ -158,13 +163,13 @@ magellan-lite serve --open     # this page, with a live API</pre>
 
     <section id="team" aria-labelledby="team-title">
       <h2 id="team-title">Team</h2>
-      <!-- TODO(starter): put in your names, and one line each on what you built.
+      <!-- TODO(starter): keep each line true to what you built as the project grows.
            Plain HTML: change the text inside each <h3> and <p> below. Open index.html in a
            browser to see it (refresh after saving). -->
       <div class="cards three">
         <article class="card person"><h3>Brayton</h3><p class="muted">Engine: map, diff, blast radius</p></article>
-        <article class="card person"><h3>Teammate</h3><p class="muted">Checklist rules</p></article>
-        <article class="card person"><h3>Teammate</h3><p class="muted">Developer experience</p></article>
+        <article class="card person"><h3>Braxton</h3><p class="muted">The website</p></article>
+        <article class="card person"><h3>Faidh</h3><p class="muted">Website quality checks</p></article>
       </div>
     </section>
   </main>

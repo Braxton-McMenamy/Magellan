@@ -1,0 +1,7 @@
+{
+  "about": "Website files the extension's map panel uses, copied into media/ by sync.js (site/ is the original: edit it there). tests/test_extension.py fails when a copy is out of date.",
+  "files": {
+    "site/js/map.js": "media/map.js",
+    "site/css/map.css": "media/map.css"
+  }
+}

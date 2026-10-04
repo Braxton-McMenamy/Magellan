@@ -2,13 +2,15 @@
 
 The local server's ``/api/check``, the website's "Try it" box (which runs this module in the
 visitor's browser, through Pyodide) and ``demo/build_site.py`` all call ``check_with_map``, so
-the page draws the same thing whichever of them answered.
+the page draws the same thing whichever of them answered. The Team suite calls ``team_live``:
+everyone's shared work in progress at once.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+from magellan_lite.combine import _changed, combine, derive
 from magellan_lite.defs import Definition, definitions
 from magellan_lite.engine import check_snapshots
 from magellan_lite.graph import build_graph
@@ -24,6 +26,59 @@ def check_with_map(before: dict[str, str], after: dict[str, str]) -> dict:
     report = check_snapshots(b, a, Path("."), "request").to_dict()
     report["map"] = code_map(b, a, report)
     return report
+
+
+def team_live(base: dict[str, str], works: dict[str, dict[str, str]]) -> dict:
+    """Everyone's work in progress, checked alone, two by two, and all together.
+
+    ``base`` is the version everyone builds on (the default branch); ``works`` is each
+    person's version of the project, ``{name: {path: source}}``. Returns
+
+    - ``members``: each person's own check, with its map (``name`` plus ``Report.to_dict()``);
+    - ``pairs``: for each two people, the problems only their two changes together have;
+    - ``team``: everyone's changes applied at once, checked, with a map whose nodes say whose
+      change made them (``by``) and whose change reaches them (``reached_by``). A file two
+      people both changed is taken from the first of them by name, and listed in ``overlap``.
+    """
+    root = Path(".")
+    b = Snapshot(dict(base), "base")
+    snaps = {name: derive(b, files, name) for name, files in sorted(works.items())}
+    alone = {name: check_snapshots(b, s, root, name) for name, s in snaps.items()}
+
+    members = []
+    for name, s in snaps.items():
+        r = alone[name].to_dict()
+        r["map"] = code_map(b, s, r)
+        members.append({"name": name, **r})
+
+    names, pairs = list(snaps), []
+    for i, x in enumerate(names):
+        for y in names[i + 1:]:
+            c = combine(root, b, snaps[x], snaps[y], y, alone=(alone[x], alone[y])).to_dict()
+            pairs.append({"a": x, "b": y, "verdict": c["verdict"], "findings": c["findings"],
+                          "affected": c["affected"], "overlap": c["overlap"]})
+
+    together, owner, overlap = dict(base), {}, {}
+    for name, s in snaps.items():
+        for path in sorted(_changed(b.files, s.files)):
+            if path in owner:
+                overlap.setdefault(path, [owner[path]]).append(name)
+                continue
+            owner[path] = name
+            if path in s.files:
+                together[path] = s.files[path]
+            else:
+                together.pop(path, None)
+    t = derive(b, together, "team")
+    team = check_snapshots(b, t, root, "team").to_dict()
+    team["map"] = code_map(b, t, team)
+    changed_by = {n: {c.name for c in alone[n].changes} for n in names}
+    reached_by = {n: {a["name"] for a in alone[n].affected} for n in names}
+    for node in team["map"]["nodes"]:
+        node["by"] = [n for n in names if node["id"] in changed_by[n]]
+        node["reached_by"] = [n for n in names if node["id"] in reached_by[n]]
+    team["overlap"] = [{"path": p, "names": ns} for p, ns in sorted(overlap.items())]
+    return {"members": members, "pairs": pairs, "team": team}
 
 
 def code_map(before: Snapshot, after: Snapshot, report: dict) -> dict:

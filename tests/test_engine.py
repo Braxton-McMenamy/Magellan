@@ -162,6 +162,10 @@ class Cli(unittest.TestCase):
             self.assertEqual(data["findings"][0]["rule"], "mutable-default-argument")
             code, _out, _ = self.run_cli("check", str(p.root), "--fail-on", "review")
             self.assertEqual(code, 1)
+            self.assertNotIn("map", data)                           # only when asked
+            _code, out, _ = self.run_cli("check", str(p.root), "--format", "json", "--map")
+            nodes = {n["id"]: n for n in json.loads(out)["map"]["nodes"]}
+            self.assertEqual(nodes["m.f"]["change"], "signature")
 
     def test_text_output_reads_as_a_checklist(self):
         with Project() as p:

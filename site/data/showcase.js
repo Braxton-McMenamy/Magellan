@@ -1,5 +1,5 @@
 // the hero, the checklist and the Try-it examples: written by demo/build_site.py -- do not edit by hand
-window.MAGELLAN_SHOWCASE = {
+self.MAGELLAN_SHOWCASE = {
  "version": "0.2.0",
  "hero": {
   "command": "magellan-lite check",
