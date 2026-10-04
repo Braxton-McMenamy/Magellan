@@ -30,8 +30,6 @@ Standard library only. It may face the internet, so it defends itself:
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import json
 import re
 import secrets
@@ -46,6 +44,8 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
 from urllib.parse import parse_qs, unquote, urlparse
+
+from magellan_lite import security
 
 SITE_DIR = Path(__file__).resolve().parent.parent / "site"
 PACKAGE_PARENT = Path(__file__).resolve().parent.parent      # what makes magellan_lite importable
@@ -181,30 +181,6 @@ class RateLimiter:
             return 0.0
 
 
-# -- security headers ----------------------------------------------------------------------------
-def _inline_script_hashes(site: Path) -> list[str]:
-    """CSP hashes for the inline scripts of the site's pages, so nothing else inline runs."""
-    out = []
-    for page in site.glob("*.html"):
-        for body in re.findall(r"<script>(.*?)</script>", page.read_text("utf-8", "replace"), re.S):
-            out.append("'sha256-" + base64.b64encode(hashlib.sha256(body.encode()).digest()).decode() + "'")
-    return sorted(set(out))
-
-
-def _csp(site: Path) -> str:
-    return "; ".join([
-        "default-src 'self'",
-        "script-src 'self' " + " ".join(_inline_script_hashes(site)),
-        "style-src 'self' 'unsafe-inline'",           # style="--heat: .8" on map nodes
-        "img-src 'self' data:",
-        "connect-src 'self'",
-        "object-src 'none'",
-        "base-uri 'none'",
-        "frame-ancestors 'none'",
-        "form-action 'none'",
-    ])
-
-
 class _Incidents:
     """The replayed incidents, computed once and kept (they only change with the code)."""
 
@@ -259,13 +235,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     # -- responses ------------------------------------------------------------------------------
     def end_headers(self) -> None:
-        self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
-        self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Cross-Origin-Opener-Policy", "same-origin")
-        self.send_header("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
-        self.send_header("Strict-Transport-Security", "max-age=31536000")
-        self.send_header("Content-Security-Policy", self.server.csp)
+        for k, v in self.server.security_headers.items():     # magellan_lite/security.py
+            self.send_header(k, v)
         super().end_headers()
 
     def _json(self, status: int, payload, extra: dict | None = None) -> None:
@@ -322,6 +293,8 @@ class Handler(SimpleHTTPRequestHandler):
         name = unquote(urlparse(self.path).path)
         if any(ord(ch) < 32 or ch == "\x7f" for ch in name):
             return self.send_error(400, "Bad request")
+        if any(part.startswith(("_", ".")) for part in name.split("/")):
+            return self.send_error(404, "Not found")    # _headers and the like: for the host
         try:
             send()
         except (ValueError, OSError):                   # never a crashed handler, never a 502
@@ -422,7 +395,7 @@ class Server(ThreadingHTTPServer):
         self.policy = policy
         self.limiter = RateLimiter(policy.rates)
         self.checker = Checker(policy, log=lambda m: sys.stderr.write(m + "\n"))
-        self.csp = _csp(site)
+        self.security_headers = security.headers(site)
         self._slots = threading.BoundedSemaphore(policy.connections)
         super().__init__(address, handler)
 

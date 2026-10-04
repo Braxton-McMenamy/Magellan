@@ -1,0 +1,10 @@
+# Security headers for Cloudflare Pages: written by demo/build_site.py from
+# magellan_lite/security.py -- do not edit by hand
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: no-referrer
+  Cross-Origin-Opener-Policy: same-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Strict-Transport-Security: max-age=31536000
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-WZRJfWvsnNCPcxzZwvyhovnZGqhZaC+8gPGPRbx6wTk=' https://cdn.jsdelivr.net 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://cdn.jsdelivr.net https://api.github.com https://raw.githubusercontent.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'

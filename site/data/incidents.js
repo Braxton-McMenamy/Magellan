@@ -1,5 +1,5 @@
 // the famous failures, replayed from demo/incidents/: written by demo/build_site.py -- do not edit by hand
-window.MAGELLAN_INCIDENTS = [
+self.MAGELLAN_INCIDENTS = [
  {
   "name": "azure-leap-day-2012",
   "title": "Windows Azure, February 29 2012: the leap-day outage",

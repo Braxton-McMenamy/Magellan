@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Team suite · Magellan Lite</title>
+  <meta name="description" content="Everyone's work in progress, checked together, before anyone merges.">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/live.css">
+  <link rel="stylesheet" href="css/map.css">
+  <link rel="stylesheet" href="css/suite.css">
+  <script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">◆</span> Magellan Lite</a>
+    <nav aria-label="Pages">
+      <a href="index.html">Home</a>
+      <a href="suite.html" aria-current="page">Team suite</a>
+      <a href="scene.html">Scene</a>
+    </nav>
+  </header>
+
+  <main class="suite">
+    <section class="suite-head">
+      <p class="eyebrow">Team suite</p>
+      <h1>Everyone's work, checked <em>together</em>.</h1>
+      <p class="lede">Each person's change can pass on its own and still break when the two meet:
+        one adds a required parameter, the other adds a call the old way. Connect your team's
+        repository to see what everyone is changing right now, and the problems that only the
+        combination has, before anyone merges.</p>
+    </section>
+
+    <section class="suite-connect" aria-labelledby="connect-title">
+      <form id="connect" class="card connect-card" autocomplete="off" novalidate>
+        <h2 id="connect-title">Connect a repository</h2>
+        <div class="field">
+          <label for="repo">GitHub repository</label>
+          <input id="repo" name="repo" type="text" placeholder="owner/name, or its github.com address"
+                 spellcheck="false" autocapitalize="off" required>
+        </div>
+        <div class="field">
+          <label for="token">Token <span class="muted">(optional)</span></label>
+          <input id="token" name="token" type="password" placeholder="only for a private repository, or faster updates"
+                 spellcheck="false" autocapitalize="off">
+        </div>
+        <details class="why">
+          <summary>About the token</summary>
+          <p>A public repository needs none: the page reads it the way anyone can, about once every
+            90 seconds (GitHub allows 60 requests an hour without one). A token lets it read a
+            private repository and look every 15 seconds.</p>
+          <p>Make a <strong>fine-grained</strong> token at GitHub → Settings → Developer settings,
+            for <strong>only this repository</strong>, with <strong>Contents: read-only</strong>.
+            It stays in this browser tab (gone when you close it, or press Forget) and is sent only
+            to api.github.com.</p>
+        </details>
+        <div class="connect-actions">
+          <button class="button primary" type="submit" id="connect-go">Connect</button>
+          <button class="button" type="button" id="connect-demo">Use this project's repository</button>
+          <button class="button" type="button" id="connect-forget" hidden>Forget</button>
+        </div>
+        <p class="form-error" id="connect-error" role="alert" hidden></p>
+      </form>
+
+      <aside class="card share-card" aria-labelledby="share-title">
+        <h2 id="share-title">How your team shares</h2>
+        <p>Nobody commits or pushes a branch. Each person publishes their working tree to
+          <code>refs/wip/&lt;name&gt;</code> on the same repository:</p>
+        <pre class="cmd"><span class="t-prompt">$</span> magellan-lite share</pre>
+        <p>or, in VS Code, turns on <strong>Magellan Lite: Share On Save</strong>. Everyone who can
+          read the repository can read what's shared, so on a public repository it is public.</p>
+        <p class="muted small">The same check on the command line: <code>magellan-lite team</code>.</p>
+      </aside>
+    </section>
+
+    <section class="suite-live" id="live" aria-labelledby="live-title" hidden>
+      <div class="live-bar">
+        <h2 id="live-title"><span id="live-repo"></span></h2>
+        <div class="live-meta">
+          <span id="live-status" class="muted" role="status" aria-live="polite"></span>
+          <span id="live-rate" class="muted small"></span>
+          <button class="button small-button" type="button" id="live-now">Look now</button>
+        </div>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Views">
+        <button role="tab" id="tab-team" aria-controls="panel-team" aria-selected="true">Team live</button>
+        <button role="tab" id="tab-you" aria-controls="panel-you" aria-selected="false" tabindex="-1">You</button>
+      </div>
+
+      <div role="tabpanel" id="panel-team" aria-labelledby="tab-team">
+        <div id="team-empty" class="card empty" hidden>
+          <h3>Nobody has shared work yet</h3>
+          <p>When someone runs <code>magellan-lite share</code> (or saves with Share On Save turned
+            on), they show up here within a minute or two.</p>
+        </div>
+        <div id="team-body">
+          <div id="team-summary" class="team-summary"></div>
+          <div id="people" class="people"></div>
+          <h3>Two at a time</h3>
+          <p class="muted small">Problems only the two changes together have: neither person's own check shows them.</p>
+          <div id="pairs" class="pairs"></div>
+          <div id="overlap"></div>
+          <div class="map-head">
+            <h3>Everyone at once</h3>
+            <a class="button small-button" href="scene.html#team">Open in the Scene →</a>
+          </div>
+          <div class="map-wrap">
+            <div id="team-map" class="map-box card"></div>
+            <aside id="team-pick" class="pick card" aria-live="polite">
+              <p class="muted small">Pick a dot to see what it is, who changed it, and what was found there.</p>
+            </aside>
+          </div>
+        </div>
+      </div>
+
+      <div role="tabpanel" id="panel-you" aria-labelledby="tab-you" hidden>
+        <div class="field you-pick">
+          <label for="me">Who are you?</label>
+          <select id="me"></select>
+        </div>
+        <div id="you-body"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>Magellan Lite · built at a hackathon ·
+      <a href="https://github.com/Braxton-McMenamy/Magellan">source on GitHub</a> ·
+      static analysis: a clean report is not proof.</p>
+  </footer>
+
+  <script src="js/dom.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/github.js"></script>
+  <script src="js/teamfeed.js"></script>
+  <script src="js/suite.js"></script>
+</body>
+</html>

@@ -9,6 +9,8 @@
  *                                    counts on files in the Explorer, like the full Magellan's
  *   Magellan Lite: Show the map      a panel: the change, what it reaches, the checklist
  *   Magellan Lite: Share my work...  magellan-lite share (your work in progress, for your team)
+ *   magellanLite.shareOnSave         the same after you save (off unless you turn it on), so
+ *                                    your team's Team suite on the website sees your work live
  *   Magellan Lite: Check against my team's work in progress
  *                                    magellan-lite team: what only your work + a teammate's breaks
  *
@@ -45,7 +47,8 @@ function activate(context, deps = {}) {
   status.tooltip = folder() ? "Checking your change..." : "Open a folder to check it";
   status.show();
   out.appendLine(`Magellan Lite activated in ${folder() ? folder().uri.fsPath : "a window with no folder"}`);
-  const state = { report: null, team: null, panel: null, timer: null };
+  const state = { report: null, team: null, panel: null, timer: null,
+    shareTimer: null, sharing: false, lastShare: 0, shareFailed: false };
   const sidebar = installSidebar(vscode, { folder, state, sub });
   // the sidebar's empty views say which: checking, nofolder, failed (and how to fix it), ready
   const setState = (s) => Promise.resolve(vscode.commands.executeCommand("setContext", "magellanLite.state", s)).catch(() => {});
@@ -105,7 +108,7 @@ function activate(context, deps = {}) {
     setState("ready");
     const s = lite.statusFor(r.data);
     status.text = s.text;
-    status.tooltip = s.tip;
+    status.tooltip = s.tip + (state.lastShareText ? `\n${state.lastShareText}` : "");
     // TODO(faidh) 1: colour the status bar by verdict, so a BLOCK can't be missed.
     //   1. Here, set `status.backgroundColor` to
     //      `new vscode.ThemeColor("statusBarItem.errorBackground")` when
@@ -137,6 +140,52 @@ function activate(context, deps = {}) {
     if (r.error) return failed(r.error), null;
     vscode.window.showInformationMessage(r.text.replace(/^magellan-lite: /, "Magellan Lite: "));
     return r.text;
+  }
+
+  // Share on save: after a save, push your work in progress -- once the saves stop for a
+  // moment (SETTLE), and never more than once every EVERY. Quiet when it works (the output
+  // channel and the status bar's tooltip say when); one warning when it fails, until it works.
+  const EVERY = deps.shareEvery ?? 15000, SETTLE = deps.shareSettle ?? 2000;
+  function shareSoon() {
+    clearTimeout(state.shareTimer);
+    const wait = Math.max(SETTLE, state.lastShare + EVERY - Date.now());
+    state.shareTimer = setTimeout(async () => {
+      if (state.sharing) return shareSoon();          // one push at a time
+      state.sharing = true;
+      state.lastShare = Date.now();
+      try {
+        const r = await python(lite.shareArgs(), false);
+        if (r.error) {
+          out.appendLine(`share on save: ${r.error}`);
+          if (!state.shareFailed) {
+            state.shareFailed = true;
+            vscode.window.showWarningMessage(`Magellan Lite couldn't share your work in progress: ${r.error}`);
+          }
+        } else {
+          state.shareFailed = false;
+          out.appendLine(`share on save: ${r.text}`);
+          state.lastShareText = `Shared your work in progress at ${new Date().toLocaleTimeString()}`;
+        }
+      } finally {
+        state.sharing = false;
+      }
+    }, wait);
+  }
+
+  // turning it on says plainly who will be able to read your work
+  async function warnShareOnSave() {
+    const pick = await vscode.window.showWarningMessage(
+      "Magellan Lite will now push your work in progress to refs/wip/<your name> on your git remote " +
+      "after you save. Anyone who can read the repository can read it: on a public repository, " +
+      "everyone. Every file git doesn't ignore goes, saved or not, so keep secrets in .gitignore'd files.",
+      "OK", "Turn it off");
+    if (pick === "Turn it off") {
+      const where = cfg().inspect ? cfg().inspect("shareOnSave") : null;
+      const target = where && where.workspaceValue !== undefined
+        ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+      await cfg().update("shareOnSave", false, target);
+    }
+    return pick;
   }
 
   /** Open a project-relative file at a (1-based) line. */
@@ -173,14 +222,19 @@ function activate(context, deps = {}) {
   sub(vscode.commands.registerCommand("magellanLite.openAt", (rel, line) =>
     openAt(rel, line).catch((e) => out.appendLine(`could not open ${rel}: ${e.message}`))));
   sub(vscode.workspace.onDidSaveTextDocument((doc) => {
-    if (doc.languageId !== "python" || cfg().get("checkOnSave") === false) return;
+    if (doc.languageId !== "python") return;
+    if (cfg().get("shareOnSave") === true) shareSoon();
+    if (cfg().get("checkOnSave") === false) return;
     clearTimeout(state.timer);
     state.timer = setTimeout(check, 300);               // a save-all is one check, not ten
   }));
-  sub({ dispose: () => clearTimeout(state.timer) });
+  sub(vscode.workspace.onDidChangeConfiguration((e) => {
+    if (e.affectsConfiguration("magellanLite.shareOnSave") && cfg().get("shareOnSave") === true) warnShareOnSave();
+  }));
+  sub({ dispose: () => { clearTimeout(state.timer); clearTimeout(state.shareTimer); } });
 
   const first = folder() ? check() : Promise.resolve(null);
-  return { check, team, share, showMap, state, first };
+  return { check, team, share, showMap, state, first, warnShareOnSave };
 }
 
 function deactivate() {}

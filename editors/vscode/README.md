@@ -14,6 +14,10 @@ Know what your change breaks before you commit it, without leaving the editor.
 - **Magellan Lite: Share my work in progress with my team** and **Check against my team's work
   in progress** run `magellan-lite share` and `magellan-lite team`: problems that only your work
   plus a teammate's has show up on the line, saying whose work they come from.
+- **Share On Save** (the `magellanLite.shareOnSave` setting, off until you turn it on): after
+  you save, your work in progress is shared for you (at most once every 15 seconds), so your
+  team's [Team suite](https://magellan-code.pages.dev/suite.html) follows your work live.
+  Whoever can read the repository can read what you share: on a public repository, everyone.
 
 ## Try it
 
@@ -47,7 +51,8 @@ code --install-extension magellan-lite-0.1.0.vsix
 
 If you have the full Magellan extension installed, disable it first (Extensions view → Magellan
 → Disable) so the two don't both mark the same files. Settings: `magellanLite.pythonPath`
-(the Python that has Magellan Lite), `magellanLite.checkOnSave`, `magellanLite.against`.
+(the Python that has Magellan Lite), `magellanLite.checkOnSave`, `magellanLite.against`,
+`magellanLite.shareOnSave`.
 
 ## How it's built
 

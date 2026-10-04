@@ -145,3 +145,6 @@ h1 em { font-style: normal; color: var(--accent); }
   .hero { padding-top: 40px; }
   .step-row { grid-template-columns: 1fr; gap: 4px; }
 }
+/* the other pages (suite.html, scene.html): set apart from the home page's sections */
+.nav nav a.nav-page { color: var(--text); font-weight: 600; }
+.nav nav a.nav-page:first-of-type { padding-left: 18px; border-left: 1px solid var(--border); }

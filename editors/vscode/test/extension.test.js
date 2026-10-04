@@ -18,7 +18,8 @@ const TEAM = [{ name: "braxton", verdict: "block", findings: [
 
 /** Just enough of VS Code for the extension to run, recording what it was asked to do. */
 function fakeVscode(settings = {}) {
-  const seen = { commands: {}, diagnostics: {}, messages: [], onSave: null, trees: {}, context: {} };
+  const seen = { commands: {}, diagnostics: {}, messages: [], warnings: [], updates: [], answer: undefined,
+                 onSave: null, onConfig: null, trees: {}, context: {} };
   class Range { constructor(...a) { this.a = a; } }
   class Diagnostic { constructor(range, message, severity) { Object.assign(this, { range, message, severity }); } }
   class ThemeColor { constructor(id) { this.id = id; } }
@@ -31,17 +32,23 @@ function fakeVscode(settings = {}) {
     FileDecoration: class { constructor(badge, tooltip, color) { Object.assign(this, { badge, tooltip, color }); } },
     Position: class { constructor(l, c) { this.l = l; this.c = c; } },
     DiagnosticSeverity: { Error: 0, Warning: 1, Information: 2, Hint: 3 },
-    StatusBarAlignment: { Left: 1 }, ViewColumn: { Beside: -2 },
+    StatusBarAlignment: { Left: 1 }, ViewColumn: { Beside: -2 }, ConfigurationTarget: { Global: 1, Workspace: 2 },
     Uri: { file: (p) => ({ fsPath: p, toString: () => p }) },
     workspace: {
       workspaceFolders: [{ uri: { fsPath: ROOT } }],
-      getConfiguration: () => ({ get: (k) => settings[k] }),
+      getConfiguration: () => ({
+        get: (k) => settings[k],
+        inspect: (k) => ({ globalValue: settings[k] }),
+        update: async (k, v, target) => { seen.updates.push([k, v, target]); settings[k] = v; },
+      }),
       onDidSaveTextDocument: (fn) => { seen.onSave = fn; return { dispose() {} }; },
+      onDidChangeConfiguration: (fn) => { seen.onConfig = fn; return { dispose() {} }; },
     },
     window: {
       createOutputChannel: () => ({ appendLine() {}, dispose() {} }),
       createStatusBarItem: () => (seen.status = { text: "", show() {}, hide() {}, dispose() {} }),
       showInformationMessage: (m) => seen.messages.push(m),
+      showWarningMessage: (m) => { seen.warnings.push(m); return Promise.resolve(seen.answer); },
       registerTreeDataProvider: (id, provider) => { seen.trees[id] = provider; return { dispose() {} }; },
       registerFileDecorationProvider: (p) => { seen.badges = p; return { dispose() {} }; },
     },
@@ -137,6 +144,71 @@ test("when Python can't run Magellan Lite, the sidebar says so", async () => {
     { vscode, execFile: fakePython({ check: missing }).execFile });
   await ext.first;
   assert.equal(vscode.seen.context["magellanLite.state"], "failed");
+});
+
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+const saved = (vscode) => vscode.seen.onSave({ languageId: "python" });
+const shares = (py) => py.calls.filter((c) => c.args[2] === "share").length;
+
+test("saving shares nothing unless Share On Save is on", async () => {
+  const vscode = fakeVscode();
+  const py = fakePython({ check: CHECK, share: "magellan-lite: shared" });
+  const ext = activate({ subscriptions: [], extensionPath: __dirname },
+    { vscode, execFile: py.execFile, shareSettle: 5, shareEvery: 40 });
+  await ext.first;
+  saved(vscode);
+  await pause(80);
+  assert.equal(shares(py), 0);
+});
+
+test("Share On Save: a burst of saves is one share, and never more than one per interval", async () => {
+  const vscode = fakeVscode({ shareOnSave: true });
+  const py = fakePython({ check: CHECK, share: "magellan-lite: shared your work in progress as refs/wip/brayton" });
+  const ext = activate({ subscriptions: [], extensionPath: __dirname },
+    { vscode, execFile: py.execFile, shareSettle: 5, shareEvery: 150 });
+  await ext.first;
+  saved(vscode); saved(vscode); saved(vscode);
+  await pause(40);
+  assert.equal(shares(py), 1);                       // the burst: once
+  saved(vscode);
+  await pause(40);
+  assert.equal(shares(py), 1);                       // too soon after the last one: waits...
+  await pause(160);
+  assert.equal(shares(py), 2);                       // ...and then goes
+  assert.deepEqual(py.calls.find((c) => c.args[2] === "share").args, ["-m", "magellan_lite", "share", "."]);
+  assert.equal(vscode.seen.messages.length, 0);      // quiet when it works
+});
+
+test("Share On Save warns once when sharing fails, not on every save", async () => {
+  const vscode = fakeVscode({ shareOnSave: true });
+  const refused = Object.assign(new Error("exit 2"), { stderr: "magellan-lite: Permission denied (publickey)" });
+  const py = fakePython({ check: CHECK, share: refused });
+  const ext = activate({ subscriptions: [], extensionPath: __dirname },
+    { vscode, execFile: py.execFile, shareSettle: 5, shareEvery: 10 });
+  await ext.first;
+  saved(vscode);
+  await pause(40);
+  saved(vscode);
+  await pause(40);
+  assert.equal(shares(py), 2);
+  assert.equal(vscode.seen.warnings.length, 1);
+  assert.match(vscode.seen.warnings[0], /couldn't share/);
+});
+
+test("turning Share On Save on says who can read the work, and can turn it back off", async () => {
+  const settings = { shareOnSave: true };
+  const vscode = fakeVscode(settings);
+  vscode.seen.answer = "Turn it off";
+  const ext = activate({ subscriptions: [], extensionPath: __dirname },
+    { vscode, execFile: fakePython({ check: CHECK }).execFile });
+  await ext.first;
+  await vscode.seen.onConfig({ affectsConfiguration: (k) => k === "magellanLite.checkOnSave" });
+  assert.equal(vscode.seen.warnings.length, 0);      // another setting: nothing to say
+  vscode.seen.onConfig({ affectsConfiguration: (k) => k === "magellanLite.shareOnSave" });
+  await pause(10);
+  assert.match(vscode.seen.warnings[0], /public repository, everyone/);
+  assert.deepEqual(vscode.seen.updates, [["shareOnSave", false, vscode.ConfigurationTarget.Global]]);
+  assert.equal(settings.shareOnSave, false);
 });
 
 test("the status bar is red on a block (TODO(faidh) 1)", { skip: "TODO(faidh) 1: status bar colours" }, async () => {

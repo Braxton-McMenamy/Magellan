@@ -47,6 +47,13 @@
 .map .badge circle { fill: #ff3b30; }
 .map .badge text { fill: #fff; font: 800 10px var(--font); text-anchor: middle; }
 .map .node.finding.lit .badge { opacity: 1; }
+.map .node.by.lit .dot { fill: var(--who); }                     /* a team map: whose change */
+.map .node.by.lit .halo { fill: color-mix(in srgb, var(--who) 25%, transparent); }
+.map .node.by-many.lit .dot { stroke: var(--who2); stroke-width: 3; }
+.map .node.pickable { cursor: pointer; }
+.map .node.pickable:hover .halo, .map .node.pickable:focus-visible .halo { stroke: var(--map-text); stroke-width: 1.5; }
+.map .node.pickable:focus { outline: none; }
+.map .node.picked .halo { stroke: var(--map-text); stroke-width: 2.5; }
 .map .node.finding.lit .halo { stroke: #ff3b30; stroke-width: 2; animation: ring 1.5s ease-out infinite; }
 @keyframes grow { from { transform: scale(.4); } to { transform: scale(1); } }
 @keyframes ring { from { transform: scale(.5); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
@@ -54,6 +61,7 @@
 .story-stage .map-legend { color: var(--stage-muted); }
 .lg { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 50%; vertical-align: -1px; }
 .lg.changed { background: var(--accent); }
+.lg.person { background: var(--who); }
 .lg.affected { background: var(--hot); }
 .lg.finding { border: 2px solid #ff3b30; }
 .lg.spread { width: 18px; height: 0; border-radius: 0; border-top: 2px dashed var(--hot); vertical-align: 3px; }

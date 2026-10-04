@@ -9,7 +9,9 @@ shows is generated here, by the real engine:
 
     site/data/incidents.js   the famous failures, replayed: the story player and the scoreboard
     site/data/showcase.js    the hero's terminal output, the checklist, the three "Try it" examples
-    site/data/engine.js      Magellan Lite's own source, which "Try it" runs in the browser
+    site/data/engine.js      Magellan Lite's own source, which "Try it" and the Team suite run in
+                             the browser
+    site/_headers            the security headers Cloudflare Pages sends (magellan_lite/security.py)
 """
 
 from __future__ import annotations
@@ -29,10 +31,12 @@ from magellan_lite.engine import check_snapshots  # noqa: E402
 from magellan_lite.findings import RULES  # noqa: E402
 from magellan_lite.incidents import find_incidents, replay  # noqa: E402
 from magellan_lite.output import text  # noqa: E402
+from magellan_lite.security import pages_headers  # noqa: E402
 from magellan_lite.source import Snapshot, working_tree  # noqa: E402
 from magellan_lite.web import check_with_map  # noqa: E402
 
-DATA = ROOT / "site" / "data"
+SITE = ROOT / "site"
+DATA = SITE / "data"
 INCIDENTS = HERE / "incidents"
 #: the hero replays this incident's change, as `magellan-lite check` prints it
 HERO = "sensor-signature-break"
@@ -199,8 +203,9 @@ def engine() -> dict:
 
 # -- writing ------------------------------------------------------------------------------------
 def _js(name: str, value, what: str, indent: int | None = 1) -> str:
+    # self: the page's window, or a worker's global scope (the Team suite checks in a worker)
     return (f"// {what}: written by demo/build_site.py -- do not edit by hand\n"
-            f"window.{name} = {json.dumps(value, indent=indent)};\n")
+            f"self.{name} = {json.dumps(value, indent=indent)};\n")
 
 
 def build() -> dict[Path, str]:
@@ -214,6 +219,7 @@ def build() -> dict[Path, str]:
                                   "the hero, the checklist and the Try-it examples"),
         DATA / "engine.js": _js("MAGELLAN_ENGINE", engine(),
                                 "Magellan Lite's source, run in the browser by Try it", None),
+        SITE / "_headers": pages_headers(SITE),
     }
 
 

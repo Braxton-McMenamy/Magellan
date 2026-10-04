@@ -4,8 +4,12 @@
 //
 // Each column after "the change" holds the definitions that call (or read) the column before
 // it: the code the change can break, hop by hop, with its score. Drawn as SVG from a report's
-// `map` (magellan_lite/web.py). `MagellanMap.render(el, map)` returns { play, finish }:
+// `map` (magellan_lite/web.py). `MagellanMap.render(el, map, opts)` returns { play, finish }:
 // play() lights the change and then each hop in turn; finish() jumps to the end.
+//
+// A team's map (web.team_live) says whose change each node is (`by`): pass
+// opts.people = MagellanMap.colours(names) to colour each person's changes their own colour.
+// opts.onPick(node) makes the nodes clickable (and reachable with Tab and Enter).
 
 window.MagellanMap = (() => {
   const NS = "http://www.w3.org/2000/svg";
@@ -17,6 +21,9 @@ window.MagellanMap = (() => {
     return el;
   };
   const MAX_USES = 4;                     // the "uses" column: the change's main dependencies
+  // one colour per person: distinct from each other, from the accent and from the "hot" red
+  const PALETTE = ["#3d8bfd", "#2fbf71", "#b26bff", "#ff8a3d", "#14b8c4", "#e0559b", "#9aa53a", "#7c8cff"];
+  const colours = (names) => Object.fromEntries([...names].map((n, i) => [n, PALETTE[i % PALETTE.length]]));
 
   // A report without a map (a report.json from the command line): the change and what it
   // reaches, joined by the "why" of each affected definition ("src calls dst (path:line)").
@@ -178,6 +185,24 @@ window.MagellanMap = (() => {
         transform: `translate(${p.x},${p.y})`,
       }, gNodes);
       if (n.score > 0) g.style.setProperty("--heat", String(0.3 + 0.7 * n.score));
+      const by = (n.by || []).filter((who) => opts.people && opts.people[who]);
+      if (by.length) {                    // set through the DOM, not a style="" attribute
+        g.classList.add("by");
+        g.style.setProperty("--who", opts.people[by[0]]);
+        if (by.length > 1) {
+          g.classList.add("by-many");     // two people changed it: a ring in the second colour
+          g.style.setProperty("--who2", opts.people[by[1]]);
+        }
+      }
+      if (opts.onPick) {
+        g.classList.add("pickable");
+        g.setAttribute("tabindex", "0");
+        g.setAttribute("role", "button");
+        g.addEventListener("click", () => opts.onPick(n, g));
+        g.addEventListener("keydown", (ev) => {
+          if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); opts.onPick(n, g); }
+        });
+      }
       svg("circle", { r: 17, class: "halo" }, g);
       if (n.kind === "class") svg("rect", { x: -8, y: -8, width: 16, height: 16, rx: 4, class: "dot" }, g);
       else if (n.kind === "constant") svg("rect", { x: -6, y: -6, width: 12, height: 12, class: "dot", transform: "rotate(45)" }, g);
@@ -192,7 +217,8 @@ window.MagellanMap = (() => {
       }
       const what = n.change ? ` · ${n.change}` : n.score > 0
         ? ` · reached, score ${n.score.toFixed(2)} (${n.hops} hop${n.hops === 1 ? "" : "s"})` : " · used by the change";
-      svg("title", {}, g).textContent = `${n.id}${what}${n.finding ? " · a finding is here" : ""}\n${n.path}:${n.line}`;
+      const who = by.length ? ` · changed by ${by.join(" and ")}` : "";
+      svg("title", {}, g).textContent = `${n.id}${what}${who}${n.finding ? " · a finding is here" : ""}\n${n.path}:${n.line}`;
       return { g, n, col: p.c };
     });
     if (more) {
@@ -205,6 +231,17 @@ window.MagellanMap = (() => {
       const legend = document.createElement("div");
       legend.className = "map-legend";
       legend.innerHTML = `<span><i class="lg changed"></i>changed</span><span><i class="lg affected"></i>reached by the change (its score)</span><span><i class="lg finding"></i>a finding</span><span><i class="lg spread"></i>the change spreading to its callers</span>`;
+      if (opts.people) {                  // names come from the repository: text, never HTML
+        legend.firstElementChild.remove();
+        for (const [name, colour] of Object.entries(opts.people).reverse()) {
+          const item = document.createElement("span");
+          const dot = document.createElement("i");
+          dot.className = "lg person";
+          dot.style.setProperty("--who", colour);
+          item.append(dot, `changed by ${name}`);
+          legend.prepend(item);
+        }
+      }
       container.append(legend);
     }
 
@@ -248,5 +285,5 @@ window.MagellanMap = (() => {
     return { play, finish, duration: () => 1300 + cols.length * 160 + 850 * maxHop };
   }
 
-  return { fromReport, render };
+  return { fromReport, render, colours };
 })();

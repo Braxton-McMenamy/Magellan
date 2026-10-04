@@ -65,6 +65,16 @@ reports only the findings neither of you has alone. There are no accounts and no
 remote you already use is the shared place, and its permissions decide who sees what.
 `team` exits 1 when a combination blocks (`--fail-on`), and `--format json` is for tools.
 
+**Live, for the whole team:** the website's [Team suite](https://magellan-code.pages.dev/suite.html)
+reads a GitHub repository's `refs/wip/*` and checks everyone's work alone, two by two and all at
+once, in the browser (`web.team_live`, on Pyodide in a worker), refreshing every 90 seconds (15
+with a token). Its *Team live* tab shows each person, every pair that breaks only together, and
+one map where each person's changes have their own colour; *You* shows your work against each
+teammate's. The [Scene](https://magellan-code.pages.dev/scene.html) shows any of those maps full
+screen. In VS Code, turn on **Magellan Lite: Share On Save** and your work is shared as you
+save (at most every 15 seconds), so the suite follows along. A public repository's shared work
+is public: the extension says so when you turn it on.
+
 ## Writing a rule
 
 ```python
@@ -94,7 +104,7 @@ Each says what to build and how you know it's done.
 | `TODO(checklist)` | comfortable | Done: the five famous-failure rules (`leap-day-date`, `reused-value`, `loop-without-progress`, `regex-catastrophic-backtracking`, `unsynchronized-shared-state`); every incident is caught. Next: make them see more (a regex kept in a constant is the easiest; see `magellan_lite/rules/__init__.py`). After any rule change, `python demo/run.py` must stay all caught; then run `python demo/build_site.py`. |
 | engine | Brayton | Done: the blast radius (call graph and propagation), renames, the "reaches" section, `signature-break` and `removed-still-referenced`. The sensor incident is caught. |
 | `TODO(site)` | Braxton | The website. Done: the live hero, the famous-failure player, the checklist, Try it. Next: a share link for Try it (`site/js/tryit.js`), opening the player on one incident (`site/js/story.js`). |
-| `TODO(braxton)` | Braxton | The 3D and 2D views from the original Magellan, in `site/js/` (shared with the extension's map panel and the account pages to come): steps in `editors/vscode/media/panel.js`. |
+| `TODO(braxton)` | Braxton | The 3D and 2D views from the original Magellan, in `site/js/`: each registers itself as a view of the Scene (`site/js/scene.js`, `VIEWS`), and the extension's map panel copies it (steps in `editors/vscode/media/panel.js`). |
 | `TODO(faidh)` | Faidh | The VS Code extension: status bar colours, a setting to hide low findings, an icon, a screenshot. Four small numbered tasks: see `editors/vscode/README.md`. |
 
 ## Layout
@@ -111,16 +121,20 @@ magellan_lite/
   git.py        the project at a git revision
   engine.py     one check, start to finish
   output.py     the terminal report
-  web.py        a check plus the code map, for the website (server, browser, build)
+  web.py        a check plus the code map, for the website (server, browser, build); team_live
+  combine.py    two people's work checked together (no git: the browser runs it too)
+  team.py       magellan-lite share / team: the git side
+  security.py   the website's security headers, for the server and for Cloudflare Pages
   server.py     magellan-lite serve: the website and its API
   cli.py        the command line
   rules/        the checklist, one file per rule
 tests/          unittest; tests/helpers.py makes throwaway git repositories
 demo/           incidents/ (famous failures, one folder per change), run.py (the scoreboard),
                 build_site.py (writes site/data/ from the real engine)
-site/           the project page (Braxton's): plain HTML, CSS and JavaScript, no build step;
-                site/data/ is generated, never edited by hand; js/map.js + css/map.css draw
-                every code map (website and extension)
+site/           the website (Braxton's): plain HTML, CSS and JavaScript, no build step. Three
+                pages: index.html (home), suite.html (Team suite), scene.html (Scene).
+                site/data/ and site/_headers are generated, never edited by hand; js/map.js +
+                css/map.css draw every code map (website and extension)
 editors/vscode/ the VS Code extension: on-save checks, the status bar, team conflicts, the map
                 panel (see its README; `npm test` there, or tests/test_extension.py)
 ```
@@ -149,12 +163,27 @@ What's on it, all drawn from the real engine:
   from a CDN), so nothing is uploaded. Under `magellan-lite serve` it uses the local API
   instead, which also works offline.
 
+Beside the home page:
+
+- **Team suite** (`suite.html`): connect a GitHub repository and watch the team's shared work
+  in progress, checked together (see [Working as a team](#working-as-a-team)). It reads GitHub
+  from the browser (`js/github.js`: public repositories need no token; a token, for private
+  ones or faster updates, stays in the tab's session and goes only to api.github.com) and
+  checks in a worker (`js/engine-worker.js`), so the page never freezes.
+- **Scene** (`scene.html`): one map, full screen: the team's (all at once, or one person's) or
+  a famous failure's. Pick a dot to see what it is, who changed it and what was found there.
+  Braxton's 3D and 2D views plug in here.
+
 `site/data/` is written by `python demo/build_site.py`: the replayed incidents, the hero, the
 rules, the Try-it examples (each checked to give the verdict it promises) and the engine
-bundle. Run it after changing a rule, the engine or an incident, and commit what it writes;
-`tests/test_site.py` fails while it is out of date. To work on the page, open
-`site/index.html` in a browser, or run `magellan-lite serve` for the page and the live API on
-<http://localhost:8000>.
+bundle. It also writes `site/_headers`, the security headers Cloudflare Pages sends with every
+file: the same ones `magellan-lite serve` sends (`magellan_lite/security.py`), including a
+content security policy that lets a page load only its own scripts and Pyodide, and contact
+only itself, the CDN and GitHub. Run it after changing a rule, the engine, an incident or an
+inline script, and commit what it writes; `tests/test_site.py` fails while it is out of date.
+To work on the pages, open `site/index.html` in a browser, or run `magellan-lite serve` for
+the pages and the live API on <http://localhost:8000> (the Team suite needs this or the live
+site: browsers don't run workers for pages opened from disk).
 
 ## Local server and API
 
@@ -162,11 +191,12 @@ bundle. Run it after changing a rule, the engine or an incident, and commit what
 <http://localhost:8000>. Standard library only. It listens on this computer alone unless
 started with `--host 0.0.0.0` (then the local network, or a Tailscale network, can reach it).
 Code sent to it is only parsed, never run; a request is capped at 1 MB and 200 files per side.
-API responses allow any origin, so a page opened straight from disk can call it too.
+Browsers may call the API only from the website's own address and the origins given with
+`--allow-origin` (the default allows <https://magellan-code.pages.dev>).
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/health` | `{"ok": true, "version": "..."}` |
+| `GET /api/health` | `{"ok": true}` |
 | `GET /api/rules` | `[{"id", "severity", "blocking", "kind", "fix"}]` |
 | `GET /api/incidents` | the famous failures replayed now, the same data as `python demo/run.py` (`?refresh=1` to re-run after a rule changes) |
 | `POST /api/check` | body `{"before": {"path.py": "source"}, "after": {"path.py": "source"}}`; returns the report: `verdict`, `changes`, `findings`, `affected` (the blast radius), `errors` |

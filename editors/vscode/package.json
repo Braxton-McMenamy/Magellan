@@ -134,6 +134,11 @@
           "type": "string",
           "default": "git:HEAD",
           "description": "What to compare the working tree with: git:REV, or a folder holding the old version."
+        },
+        "magellanLite.shareOnSave": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "After you save a Python file, share your work in progress with your team (`magellan-lite share`: your working tree goes to `refs/wip/<your name>` on the git remote, at most once every 15 seconds), so your teammates' **Team suite** and `team` checks see it as you go. **Anyone who can read the repository can read it**: on a public repository, everyone."
         }
       }
     },

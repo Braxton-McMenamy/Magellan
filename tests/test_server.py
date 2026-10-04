@@ -122,7 +122,8 @@ class Server(unittest.TestCase):
         status, _h, body = self.request("/")
         self.assertEqual(status, 200)
         self.assertIn(b"<html", body.lower())
-        for path in ("/../pyproject.toml", "/%2e%2e/pyproject.toml", "/api/nope", "/data/"):
+        for path in ("/../pyproject.toml", "/%2e%2e/pyproject.toml", "/api/nope", "/data/",
+                     "/_headers", "/.git/config", "/js/.hidden"):
             with self.subTest(path=path):
                 self.assertEqual(self.request(path)[0], 404)       # no listings either
 
@@ -157,9 +158,10 @@ class Server(unittest.TestCase):
                 self.assertEqual(h["Referrer-Policy"], "no-referrer")
                 csp = h["Content-Security-Policy"]
                 self.assertIn("frame-ancestors 'none'", csp)
-                script = next(p for p in csp.split("; ") if p.startswith("script-src"))
-                self.assertNotIn("unsafe", script)
-                self.assertIn("'sha256-", script)          # the one inline script, by hash
+                script = next(p for p in csp.split("; ") if p.startswith("script-src")).split()
+                self.assertNotIn("'unsafe-inline'", script)
+                self.assertNotIn("'unsafe-eval'", script)  # WebAssembly only: 'wasm-unsafe-eval'
+                self.assertTrue(any(s.startswith("'sha256-") for s in script))   # the inline one
                 self.assertEqual(h["Server"].strip(), "magellan-lite")
 
     def test_unknown_host_names_are_refused(self):
