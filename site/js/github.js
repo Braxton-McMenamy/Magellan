@@ -29,12 +29,19 @@ window.MagellanGitHub = (() => {
     ".jsx", ".mjs", ".cjs"]);
   const REFRESH_BASE_MS = 5 * 60_000;   // look at the default branch again at least this often
 
-  // "owner/repo", "https://github.com/owner/repo", "...repo.git" -> { owner, repo } or null
+  // "owner/repo", "https://github.com/owner/repo", "...repo.git" -> { owner, repo } or null.
+  // A folder after the name ("owner/repo/demo/live", or a GitHub folder link ".../tree/main/
+  // demo/live", whose branch is ignored: the suite reads the default branch) adds { path }: only
+  // that folder is read, as if it were the whole project (a demo inside a big repository).
+  const SEGMENT = /^[A-Za-z0-9._-]{1,100}$/;
   function parseRepo(text) {
-    const s = String(text || "").trim().replace(/\.git$/, "").replace(/\/+$/, "");
-    const m = s.match(/^(?:https?:\/\/(?:www\.)?github\.com\/)?([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]{1,100})$/);
-    if (!m || m[2] === "." || m[2] === "..") return null;
-    return { owner: m[1], repo: m[2] };
+    const s = String(text || "").trim().replace(/\/+$/, "").replace(/^https?:\/\/(?:www\.)?github\.com\//, "");
+    let [owner, repo, ...rest] = s.split("/");
+    repo = String(repo || "").replace(/\.git$/, "");
+    if (rest[0] === "tree" && rest.length > 2) rest = rest.slice(2);
+    if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(owner || "") || !SEGMENT.test(repo)) return null;
+    if ([repo, ...rest].some((p) => !SEGMENT.test(p) || p === "." || p === "..")) return null;
+    return rest.length ? { owner, repo, path: rest.join("/") } : { owner, repo };
   }
 
   // a personal access token's shape; anything else is refused before it goes anywhere
@@ -68,10 +75,11 @@ window.MagellanGitHub = (() => {
   }
 
   class Repo {
-    constructor({ owner, repo }, token = "") {
+    constructor({ owner, repo, path = "" }, token = "") {
       if (token && !tokenOk(token)) throw new GitHubError("That doesn't look like a GitHub token.");
       this.owner = owner;
       this.repo = repo;
+      this.root = path;               // a folder to read alone ("demo/live"), or "" for everything
       this.token = token;
       this.rate = null;               // { remaining, limit, reset (ms) } from GitHub's answers
       this.info = null;               // the repository: default branch, private or not
@@ -81,6 +89,17 @@ window.MagellanGitHub = (() => {
     }
 
     get full() { return `${this.owner}/${this.repo}`; }
+    // what was asked for: the repository, or its folder ("owner/repo/demo/live"), and its page
+    get where() { return this.root ? `${this.full}/${this.root}` : this.full; }
+    get page() { return `https://github.com/${this.full}` + (this.root ? `/tree/HEAD/${this.root}` : ""); }
+
+    // the repository's path to the project's ("demo/live/fleet/cargo.py" -> "fleet/cargo.py"),
+    // or null for a file outside the folder
+    local(path) {
+      if (!this.root) return path;
+      return path.startsWith(this.root + "/") ? path.slice(this.root.length + 1) : null;
+    }
+    mine(path) { const p = this.local(path); return p !== null && projectFile(p); }
 
     async api(path, cache = "default") {
       const headers = { Accept: "application/vnd.github+json" };
@@ -148,32 +167,33 @@ window.MagellanGitHub = (() => {
     async loadBase(sha) {
       const tree = await this.api(`/git/trees/${sha}?recursive=1`);       // a sha: never changes
       if (tree.truncated) throw new GitHubError("This repository is too big to read in the browser: use `magellan-lite team`.");
-      const all = tree.tree.filter((e) => e.type === "blob" && projectFile(e.path));
+      const all = tree.tree.filter((e) => e.type === "blob" && this.mine(e.path));
       const entries = all.filter((e) => !leaveOut(e.path, e.size || 0));
-      const skipped = all.filter((e) => leaveOut(e.path, e.size || 0)).map((e) => e.path);
+      const skipped = all.filter((e) => leaveOut(e.path, e.size || 0)).map((e) => this.local(e.path));
+      if (this.root && !all.length) throw new GitHubError(`No source files in ${this.where}: check the folder's name.`);
       const bytes = entries.reduce((n, e) => n + (e.size || 0), 0);
       if (entries.length > LIMITS.files || bytes > LIMITS.bytes) {
         throw new GitHubError(`${entries.length} source files (${Math.round(bytes / 1e6)} MB) is more than the browser should take on: use \`magellan-lite team\`.`);
       }
       const files = {};
-      await pool(entries, 8, async (e) => { files[e.path] = await this.blob(e.path, e.sha, sha); });
+      await pool(entries, 8, async (e) => { files[this.local(e.path)] = await this.blob(e.path, e.sha, sha); });
       this.base = { sha, files, skipped, at: Date.now() };
     }
 
     // what one person's shared work changed against the default branch, as { path: text | null }
     async loadWork(name, sha) {
       const cmp = await this.api(`/compare/${this.base.sha}...${sha}`);   // both shas: never changes
-      const files = (cmp.files || []).filter((f) => projectFile(f.filename) ||
-        (f.previous_filename && projectFile(f.previous_filename)));
+      const files = (cmp.files || []).filter((f) => this.mine(f.filename) ||
+        (f.previous_filename && this.mine(f.previous_filename)));
       const changes = {}, skipped = [];
       await pool(files, 6, async (f) => {
-        if (f.previous_filename && projectFile(f.previous_filename)) changes[f.previous_filename] = null;
-        if (!projectFile(f.filename)) return;
+        if (f.previous_filename && this.mine(f.previous_filename)) changes[this.local(f.previous_filename)] = null;
+        if (!this.mine(f.filename)) return;
         try {
-          changes[f.filename] = f.status === "removed" ? null : await this.blob(f.filename, f.sha, sha);
+          changes[this.local(f.filename)] = f.status === "removed" ? null : await this.blob(f.filename, f.sha, sha);
         } catch (err) {
           if (!(err instanceof TooBig) || python(f.filename)) throw err;
-          skipped.push(f.filename);
+          skipped.push(this.local(f.filename));
         }
       });
       const last = (cmp.commits || []).at(-1);

@@ -5,7 +5,7 @@
 (() => {
   const { h, fill, verdict, plural, finding } = MagellanDom;
   const $ = (id) => document.getElementById(id);
-  const DEMO = "Braxton-McMenamy/Magellan";
+  const DEMO = "Braxton-McMenamy/Magellan/demo/live";     // the stage demo: one folder of our repository
   const KEY_ME = "magellan-team-me";
   const RANK = { block: 0, review: 1, ok: 2 };
 
@@ -32,7 +32,7 @@
     $("token").value = "";                       // the field doesn't keep it; the tab's session does
     $("connect-forget").hidden = false;
     $("live").hidden = false;
-    fill($("live-repo"), h("a", { href: `https://github.com/${feed.repo}`, rel: "noopener" }, feed.repo));
+    fill($("live-repo"), h("a", { href: feed.page, rel: "noopener" }, feed.repo));
     try { history.replaceState(null, "", `?repo=${encodeURIComponent(feed.repo)}`); } catch { /* file:// */ }
     status(`Reading ${feed.repo}…`);
   }

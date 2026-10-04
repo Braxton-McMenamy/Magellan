@@ -59,7 +59,7 @@ window.MagellanTeam = (() => {
     const where = MagellanGitHub.parseRepo(repo);
     if (!where) throw new MagellanGitHub.GitHubError("Write the repository as owner/name, or paste its GitHub address.");
     const gh = new MagellanGitHub.Repo(where, token);       // checks the token's shape
-    store.set(KEY_REPO, gh.full);
+    store.set(KEY_REPO, gh.where);
     store.set(KEY_TOKEN, token);
     onWorkerStatus = onStatus;
 
@@ -71,13 +71,13 @@ window.MagellanTeam = (() => {
       clearTimeout(timer);
       busy = true;
       try {
-        onStatus(last ? "Looking for new work…" : `Reading ${gh.full}…`);
+        onStatus(last ? "Looking for new work…" : `Reading ${gh.where}…`);
         const got = await gh.refresh(force);
         onStatus("");
         if (got) {
           // nobody sharing yet still gets the project's own map (team_live with no work)
           const result = await check(got.base, got.works);
-          last = { repo: gh.full, info: gh.info, people: got.people, ...result, at: Date.now() };
+          last = { repo: gh.where, info: gh.info, people: got.people, ...result, at: Date.now() };
           onResult(last, gh.rate);
         } else {
           onStatus(`Nothing new since ${new Date(last ? last.at : Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
@@ -99,7 +99,8 @@ window.MagellanTeam = (() => {
     tick(true);
 
     return {
-      repo: gh.full,
+      repo: gh.where,                 // "owner/name", or "owner/name/folder" for one folder of it
+      page: gh.page,
       now: () => tick(),
       next: () => Math.max(0, nextAt - Date.now()),
       rate: () => gh.rate,
