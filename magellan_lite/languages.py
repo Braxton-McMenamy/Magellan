@@ -7,9 +7,11 @@ there, and turned into what the rest of Lite already works with:
 
 - ``definitions(snapshot)``: a ``Definition`` per function, method, class and global, named
   ``<lang>@<qualified name>`` (``c@parse.load``, ``java@geo.Shape.area(double,double)``) so it
-  can never collide with a Python name;
+  can never collide with a Python name, and one per COBOL copybook (a class: its fields are
+  its members);
 - ``edges(snapshot)``: who calls and reads whom, inside a language and across languages (a
-  Java ``native`` method to its C function, a COBOL ``CALL`` to the program it names);
+  Java ``native`` method to its C function, a COBOL ``CALL`` to the program it names), and
+  who copies each copybook;
 - ``findings(ctx)``: what each language's own checks find in a change -- call sites a new
   signature breaks, deleted code still referenced, and the language's hazards (a COBOL
   copybook whose layout moved, a C ``goto fail``, a Fortran ``COMMON`` block that no longer
@@ -153,6 +155,8 @@ def _map(files: dict[str, str]) -> Mapped:
 
     for node in graph.nodes.values():
         kind = _KINDS.get(node.kind.value)
+        if node.kind.value == "module" and "copybook" in node.tags:
+            kind = "class"                    # so "who copies ACCTREC?" has an answer
         if kind is None or node.path not in files:
             continue
         name = node.qualname
@@ -169,11 +173,27 @@ def _map(files: dict[str, str]) -> Mapped:
     for e in graph.edges:
         kind = _CALLS.get(e.kind.value)
         src, dst = out.ids.get(e.src), out.ids.get(e.dst)
+        if e.kind.value == "imports" and dst and out.defs[dst].kind == "class" and \
+                "copybook" in graph.nodes[e.dst].tags:
+            # COPY X: the program (whose module and entry share a name) or copybook reads X
+            kind, src = "reads", src or (graph.nodes[e.src].qualname if e.src in graph.nodes
+                                         and graph.nodes[e.src].qualname in out.defs else None)
         if not kind or not src or not dst or src == dst or (src, dst, kind, e.lineno) in seen:
             continue
         seen.add((src, dst, kind, e.lineno))
         out.edges.append(Edge(src, dst, kind, e.path or out.defs[src].path, e.lineno,
                               guess=e.confidence < 1.0, positional=int(e.meta.get("args", 0))))
+    # a Fortran routine passed as an argument is called by the routine it is passed to: no
+    # call there names it, so without this APPLY "calls nothing" and is missing from INTRST's
+    # callers (a guess: what runs depends on what each caller passes)
+    passed = {e.dst for e in graph.edges if (e.meta or {}).get("procedure_argument")}
+    for t in sorted(passed & out.ids.keys()):
+        for _, _, callee, _, no, inner in _procedure_calls(graph, t, lambda p: files.get(p, "")):
+            src = out.ids.get(callee.id)
+            if src and src != out.ids[t] and (src, out.ids[t], "calls", no) not in seen:
+                seen.add((src, out.ids[t], "calls", no))
+                out.edges.append(Edge(src, out.ids[t], "calls", callee.path, no, guess=True,
+                                      positional=len(inner)))
     return out
 
 
@@ -292,25 +312,16 @@ def _call_args(stmt: str, name: str) -> list[str] | None:
     return args
 
 
-def _through_procedure_arguments(g, target_id: str, hard: list, root: str, label, affects,
-                                 EdgeKind) -> list[Finding]:
-    """Calls made to ``target`` through a procedure argument, judged against its new signature.
+def _procedure_calls(g, target_id: str, source):
+    """Every call made to ``target`` through a procedure argument.
 
     ``CALL APPLY(INTRST, P, R, D, X)`` hands INTRST to APPLY, which runs it as ``CALL FN(P,
-    R, D, X)``. No call names INTRST there, so the call-site check alone passes it by, and a
-    Fortran 77 compiler never checks it either. This finds the parameter it lands in and every
-    call made through that parameter."""
-    target = g.nodes[target_id]
-    name = (target.name or "").lower()
-    out: list[Finding] = []
-    seen: set[tuple[str, int]] = set()
-
-    def source(path: str) -> str:
-        try:
-            return (Path(root) / path).read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return ""
-
+    R, D, X)``. No call names INTRST there, so the call graph and a Fortran 77 compiler both
+    pass it by. This finds the parameter it lands in and every call made through it, as
+    ``(passing edge, call edge, callee, dummy, line, arguments)``; ``source(path)`` is a
+    file's text."""
+    from magellan_lite.polyglot.core.model import EdgeKind
+    name = (g.nodes[target_id].name or "").lower()
     for e in g.in_edges(target_id):
         if not (e.meta or {}).get("procedure_argument"):
             continue
@@ -330,30 +341,62 @@ def _through_procedure_arguments(g, target_id: str, hard: list, root: str, label
             for k in slots:
                 if k >= len(params):
                     continue
-                dummy = params[k]
                 cfixed = callee.path.lower().endswith(_FIXED_FORM)
                 for no, st in _fortran_statements(source(callee.path), cfixed):
-                    if not (callee.lineno <= no <= (callee.end_lineno or no)):
-                        continue
-                    inner = _call_args(st, dummy)
-                    if inner is None or (callee.path, no) in seen:
-                        continue
-                    site = {"positional": len(inner), "keywords": set(), "star": False,
-                            "dstar": False, "known": True, "handled": []}
-                    hits = [h for h in hard if affects(h, site, 0)]
-                    if hits:
-                        seen.add((callee.path, no))
-                        out.append(Finding(
-                            "signature-break", "critical",
-                            f"{label(g, callee.id)} calls {label(g, target_id)} through its "
-                            f"procedure argument {dummy.upper()} the old way: {hits[0]['text']}",
-                            callee.path, no,
-                            detail=(f"{label(g, e.src)} passes {target.name.upper()} to "
-                                    f"{callee.name.upper()} ({c.path}:{c.lineno}), which calls it "
-                                    f"as {dummy.upper()}. Fortran checks neither."),
-                            fix=(f"Pass a wrapper with the old argument list, or have "
-                                 f"{callee.name.upper()} pass the new argument.")))
+                    inner = _call_args(st, params[k])
+                    if inner is not None and callee.lineno <= no <= (callee.end_lineno or no):
+                        yield e, c, callee, params[k], no, inner
+
+
+def _through_procedure_arguments(g, target_id: str, hard: list, root: str, label, affects,
+                                 EdgeKind) -> list[Finding]:
+    """Calls made to ``target`` through a procedure argument, judged against its new signature
+    (a wrapper with the old argument list, passed instead, is the usual fix)."""
+    target = g.nodes[target_id]
+    out: list[Finding] = []
+    seen: set[tuple[str, int]] = set()
+
+    def source(path: str) -> str:
+        try:
+            return (Path(root) / path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+
+    for e, c, callee, dummy, no, inner in _procedure_calls(g, target_id, source):
+        if (callee.path, no) in seen:
+            continue
+        site = {"positional": len(inner), "keywords": set(), "star": False,
+                "dstar": False, "known": True, "handled": []}
+        hits = [h for h in hard if affects(h, site, 0)]
+        if hits:
+            seen.add((callee.path, no))
+            out.append(Finding(
+                "signature-break", "critical",
+                f"{label(g, callee.id)} calls {label(g, target_id)} through its "
+                f"procedure argument {dummy.upper()} the old way: {hits[0]['text']}",
+                callee.path, no,
+                detail=(f"{label(g, e.src)} passes {target.name.upper()} to "
+                        f"{callee.name.upper()} ({c.path}:{c.lineno}), which calls it "
+                        f"as {dummy.upper()}. Fortran checks neither."),
+                fix=(f"Pass a wrapper with the old argument list, or have "
+                     f"{callee.name.upper()} pass the new argument.")))
     return out
+
+
+def _copiers(g, copybook_id: str) -> list[str]:
+    """Every COBOL program that copies the copybook, directly or through other copybooks."""
+    names, seen, todo = set(), {copybook_id}, [copybook_id]
+    while todo:
+        for e in g.in_edges(todo.pop()):
+            src = g.nodes.get(e.src)
+            if e.kind.value != "imports" or src is None or e.src in seen:
+                continue
+            seen.add(e.src)
+            if "copybook" in src.tags:
+                todo.append(e.src)
+            elif "cobol-program" in src.tags:
+                names.add(src.name)
+    return sorted(names)
 
 
 def _findings(b: Mapped | None, a: Mapped | None) -> list[Finding]:
@@ -415,8 +458,14 @@ def _findings(b: Mapped | None, a: Mapped | None) -> list[Finding]:
         # high or critical findings of blocking rules
         ours = RULES.get(f.rule)
         severity = ours[0] if ours else f.severity if f.severity in _SEVERITIES else "low"
+        detail = f.detail
+        if f.rule == "copybook-layout-changed" and f.node_id in new.nodes:
+            # its fix says "recompile every program listed": list them, all of them
+            progs = _copiers(new, f.node_id)
+            if progs:
+                detail += f" Copied by {len(progs)} program(s): {', '.join(progs)}."
         out.append(Finding(f.rule, severity, f.title, f.path, f.lineno or 1,
-                           detail=f.detail, fix=f.suggestion or (ours[2] if ours else "")))
+                           detail=detail, fix=f.suggestion or (ours[2] if ours else "")))
 
     unique, seen = [], set()
     for f in out:

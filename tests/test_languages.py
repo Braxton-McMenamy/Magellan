@@ -114,6 +114,8 @@ class FoundByTheModernizationExperiment(unittest.TestCase):
         self.assertEqual(rules(r), [("signature-break", "apply.f")])
         self.assertEqual(r.findings[0].line, 4)
         self.assertIn("through its procedure argument FN", r.findings[0].message)
+        # and on the map APPLY calls INTRST, so it is among what the change reaches
+        self.assertIn("fortran@apply", [a["name"] for a in r.affected])
         # a wrapper with the old argument list is the fix, and then nothing is left to report
         fixed = batch.replace("EXTERNAL INTRST", "EXTERNAL INT360").replace("APPLY(INTRST", "APPLY(INT360") + \
             "      SUBROUTINE INT360(P, R, D, X)\n      REAL P, R, D, X\n      CALL INTRST(P, R, D, X, 360.0)\n      END\n"
@@ -144,6 +146,35 @@ class FoundByTheModernizationExperiment(unittest.TestCase):
         self.assertEqual(self.widened(p), [("move-truncates", "MOVE ACCT-BAL TO PRT-BAL now drops 4 high-order digits")])
         wide = self.program("COPY ACCTREC.", "PRT-BAL PIC -ZZ,ZZZ,ZZZ,ZZ9.99", "MOVE ACCT-BAL TO PRT-BAL.")
         self.assertEqual(self.widened(wide), [])
+
+    def test_cobol_a_move_that_already_truncated_and_now_loses_more_digits(self):
+        # ZZZ,ZZ9.99 took 1 digit off the 7-digit balance; after the widening it takes 5
+        short = self.program("COPY ACCTREC.", "PRT-BAL PIC ZZZ,ZZ9.99", "MOVE ACCT-BAL TO PRT-BAL.")
+        self.assertEqual(self.widened(short),
+                         [("move-truncates", "MOVE ACCT-BAL TO PRT-BAL now drops 5 high-order digits "
+                                             "(it dropped 1 before)")])
+        # text cut short on purpose (a prefix) stays quiet, however much longer the source grows
+        copy = self.COPY.replace("05 ACCT-BAL      PIC S9(7)V99.", "05 ACCT-NAME     PIC X(30).")
+        p = self.program("COPY ACCTREC.", "SHORT-NAME PIC X(10)", "MOVE ACCT-NAME TO SHORT-NAME.")
+        before = {"ACCTREC.cpy": copy, "P1.cbl": p}
+        r = check_files(before, {**before, "ACCTREC.cpy": copy.replace("X(30)", "X(40)")})
+        self.assertNotIn("move-truncates", [f.rule for f in r.findings])
+
+    def test_cobol_every_program_that_copies_the_copybook_is_named(self):
+        # at 40 programs, "recompile every program listed" listed none, and the copybook
+        # itself could not be looked up: a program that copies it through another copybook
+        # and never names the changed field was nowhere in the report
+        view = "           COPY ACCTREC.\n       01 ACCT-VIEW.\n           05 VIEW-FLAG PIC X.\n"
+        p1 = self.program("COPY ACCTREC.", "OUT-BAL PIC S9(13)V99", "MOVE ACCT-BAL TO OUT-BAL.")
+        p2 = p1.replace("P1.", "P2.").replace("COPY ACCTREC.", "COPY ACCTVIEW.") \
+            .replace("MOVE ACCT-BAL TO OUT-BAL.", "DISPLAY VIEW-FLAG.")
+        before = {"ACCTREC.cpy": self.COPY, "ACCTVIEW.cpy": view, "P1.cbl": p1, "P2.cbl": p2}
+        r = check_files(before, {**before, "ACCTREC.cpy": self.COPY.replace("S9(7)V99", "S9(11)V99")})
+        layout = [f for f in r.findings if f.rule == "copybook-layout-changed"]
+        self.assertEqual(len(layout), 1)
+        self.assertIn("Copied by 2 program(s): P1, P2.", layout[0].detail)
+        self.assertIn("cobol@P2", [a["name"] for a in r.affected])
+        self.assertIn("cobol@copy:ACCTREC", [c.name for c in r.changes])
 
 
 if __name__ == "__main__":
