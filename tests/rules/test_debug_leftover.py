@@ -4,8 +4,6 @@ from tests.rules.checks import found
 
 RULE = "debug-leftover"
 
-
-@unittest.skip("TODO(starter): delete this line once magellan_lite/rules/debug_leftover.py is written")
 class DebugLeftover(unittest.TestCase):
     def test_breakpoint_is_flagged(self):
         [f] = found(RULE, """

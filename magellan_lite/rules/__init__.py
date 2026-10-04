@@ -6,6 +6,9 @@ then import that module below. Give it a test in ``tests/rules/``.
 
 from magellan_lite.rules import defaults  # noqa: F401
 
+# Calls the change breaks (signature-break, removed-still-referenced): need the call graph.
+from magellan_lite.rules import breaks  # noqa: F401
+
 # Starter rules: each file has numbered steps and a test waiting for it. A file whose
 # `@rule(...)` line is still commented out registers nothing, so these imports are safe.
 from magellan_lite.rules import assert_tuple, bare_except, compare_none, debug_leftover  # noqa: F401,E501

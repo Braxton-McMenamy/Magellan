@@ -4,8 +4,6 @@ from tests.rules.checks import found
 
 RULE = "compare-to-none"
 
-
-@unittest.skip("TODO(starter): delete this line once magellan_lite/rules/compare_none.py is written")
 class CompareToNone(unittest.TestCase):
     def test_equals_none_is_flagged(self):
         [f] = found(RULE, """

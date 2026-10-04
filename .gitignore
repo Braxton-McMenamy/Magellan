@@ -19,3 +19,6 @@ venv/
 # local only
 .claude/settings.local.json
 report.json
+
+# the full Magellan editor extension's local state (holds an access token)
+.magellan/

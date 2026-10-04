@@ -22,10 +22,16 @@ The project page is `site/index.html`: see [Website](#website).
 1. **Map** (`magellan_lite/defs.py`): every function, method, class and constant, named
    stably (`pkg.mod.Class.method`) and hashed from its syntax tree. Reformatting, moving code,
    editing a docstring or switching line endings is never a change.
-2. **Diff** (`diff.py`): added, removed, or a changed signature, body or value, compared with
-   `git:HEAD` (or any revision, or another folder).
-3. **Check** (`engine.py`, `rules/`): every rule runs on the files the change touched, and only
+2. **Diff** (`diff.py`): added, removed, renamed, or a changed signature, body or value,
+   compared with `git:HEAD` (or any revision, or another folder).
+3. **Reach** (`graph.py`, `radius.py`): a call graph of who calls and reads what, walked
+   *backwards* from each change -- if `parse_record` changes, its callers are at risk, then
+   theirs. Every hop fades the score (a call x0.9), so the result is a ranked list of the code
+   the change can break that nobody touched, each with the path that reaches it.
+4. **Check** (`engine.py`, `rules/`): every rule runs on the files the change touched, and only
    findings inside a changed definition are kept, so old problems elsewhere stay quiet.
+   `signature-break` and `removed-still-referenced` use the call graph to find the calls a
+   change breaks, wherever they are.
 
 ## Writing a rule
 
@@ -54,7 +60,7 @@ Each says what to build and how you know it's done.
 | `TODO(starter)` | new to Python's `ast` | Four small rules with numbered steps and a test waiting for each (`bare_except` → `assert_tuple` → `compare_none` → `debug_leftover`). Delete the test's `@unittest.skip` line when you're done. |
 | `TODO(qol)` | comfortable | The PR comment bot (most visible), `--format markdown`, `hook install`, settings from `pyproject.toml`, `# magellan: ignore[rule]`, colours. |
 | `TODO(checklist)` | comfortable | The famous-failure rules: `leap-day-date` (start here), `reused-value`, `loop-without-progress`, `regex-catastrophic-backtracking`. Each turns an incident in `python demo/run.py` from *waiting* to *caught*. |
-| `TODO(engine)` | Brayton | The blast radius (call graph and propagation: the headline feature), renames, a "reaches" section in the output. |
+| engine | Brayton | Done: the blast radius (call graph and propagation), renames, the "reaches" section, `signature-break` and `removed-still-referenced`. The sensor incident is caught. |
 | `TODO(site)` | Braxton | The website. From the Python side: show `python demo/run.py`'s results on the page (`demo/run.py`, end of `main()`). |
 
 ## Layout
@@ -65,7 +71,9 @@ magellan_lite/
   report.py     Report and the verdict               shared contract: change together
   source.py     reading files (UTF-8), snapshots
   defs.py       the map: definitions from syntax trees
-  diff.py       what changed, and which lines that covers
+  diff.py       what changed (renames included), and which lines that covers
+  graph.py      the call graph: who calls and reads what
+  radius.py     the blast radius: what a change reaches, ranked
   git.py        the project at a git revision
   engine.py     one check, start to finish
   output.py     the terminal report

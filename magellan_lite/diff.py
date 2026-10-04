@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
 
 from magellan_lite.defs import Definition
 
 #: how much each kind of change can do to the code that depends on it, worst first
-KINDS = ("removed", "signature", "value", "body", "added")
+KINDS = ("removed", "renamed", "signature", "value", "body", "added")
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Change:
         if self.kind == "value":
             return f"{self.before.value}  ->  {self.after.value}"
         return {"removed": f"{self.before.kind} deleted", "added": f"new {self.after.kind}",
+                "renamed": f"renamed from {self.before.name}",
                 "body": f"{self.after.kind} body changed"}[self.kind]
 
     def to_dict(self) -> dict:
@@ -34,11 +36,7 @@ class Change:
 
 
 def diff(before: dict[str, Definition], after: dict[str, Definition]) -> list[Change]:
-    """Every definition added, removed or edited. One change per definition: the worst."""
-    # TODO(engine): renames. A function renamed with its body unchanged shows up as one
-    #   "removed" and one "added". Pair them (same kind, same body hash, one removed, one
-    #   added) into a single Change("renamed", ...) so callers of the old name can be checked.
-    #   Done when: tests/test_map.py renames charge -> bill and gets exactly one change.
+    """Every definition added, removed, renamed or edited. One change per definition: the worst."""
     out: list[Change] = []
     for name in sorted(set(before) | set(after)):
         b, a = before.get(name), after.get(name)
@@ -52,8 +50,38 @@ def diff(before: dict[str, Definition], after: dict[str, Definition]) -> list[Ch
             out.append(Change("value", name, a.path, a.line, before=b, after=a))
         elif a.body != b.body:
             out.append(Change("body", name, a.path, a.line, before=b, after=a))
+    out = _pair_renames(out)
     out.sort(key=lambda c: (KINDS.index(c.kind), c.path, c.line))
     return out
+
+
+def _pair_renames(changes: list[Change]) -> list[Change]:
+    """A function, method or class deleted under one name and added under another with the
+    same signature and body is one rename (or a move to another module), not two changes.
+
+    Pairs only when the match is unique. Constants are never paired: the same value under a
+    new name can be a new meaning -- Knight Capital's reused flag looked exactly like that.
+    """
+    def key(d: Definition) -> tuple:
+        return d.kind, d.signature, d.body
+
+    removed: dict[tuple, list[Change]] = defaultdict(list)
+    added: dict[tuple, list[Change]] = defaultdict(list)
+    for c in changes:
+        if c.kind == "removed" and c.before.kind != "constant":
+            removed[key(c.before)].append(c)
+        elif c.kind == "added" and c.after.kind != "constant":
+            added[key(c.after)].append(c)
+    paired: set[int] = set()
+    renames: list[Change] = []
+    for k, gone in removed.items():
+        new = added.get(k, [])
+        if len(gone) == 1 and len(new) == 1:
+            old, now = gone[0], new[0]
+            renames.append(Change("renamed", now.name, now.path, now.line,
+                                  before=old.before, after=now.after))
+            paired |= {id(old), id(now)}
+    return [c for c in changes if id(c) not in paired] + renames
 
 
 Spans = dict[str, list[tuple[int, int]]]
