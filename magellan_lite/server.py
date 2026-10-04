@@ -45,7 +45,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path, PurePosixPath
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 SITE_DIR = Path(__file__).resolve().parent.parent / "site"
 PACKAGE_PARENT = Path(__file__).resolve().parent.parent      # what makes magellan_lite importable
@@ -316,18 +316,30 @@ class Handler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
+    def _static(self, send) -> None:
+        """Serve a file of the website, refusing names no real file has: a NUL or another
+        control character makes the file system raise instead of answering."""
+        name = unquote(urlparse(self.path).path)
+        if any(ord(ch) < 32 or ch == "\x7f" for ch in name):
+            return self.send_error(400, "Bad request")
+        try:
+            send()
+        except (ValueError, OSError):                   # never a crashed handler, never a 502
+            self.send_error(404, "Not found")
+
     def do_HEAD(self) -> None:
-        if self._gate() and not self.path.startswith("/api/"):
-            super().do_HEAD()
-        elif self.path.startswith("/api/"):
-            self._refuse(405, "use GET")
+        if not self._gate():
+            return
+        if self.path.startswith("/api/"):
+            return self._refuse(405, "use GET")
+        self._static(super().do_HEAD)
 
     def do_GET(self) -> None:
         if not self._gate():
             return
         url = urlparse(self.path)
         if not url.path.startswith("/api/"):
-            return super().do_GET()                     # the website
+            return self._static(super().do_GET)         # the website
         try:
             if url.path == "/api/health":
                 return self._json(200, {"ok": True})
@@ -362,7 +374,9 @@ class Handler(SimpleHTTPRequestHandler):
                 raise BadRequest("the request needs a Content-Length", 411 if raw is None else 400)
             length = int(raw)
             if length > MAX_BODY:
-                self._discard(length)
+                if length <= 16 * MAX_BODY:             # worth reading, so the 413 arrives
+                    self._discard(length)
+                self.close_connection = True
                 raise BadRequest(f"the request is {length} bytes; the limit is {MAX_BODY}", 413)
             before, after = parse_check(self.rfile.read(length))
             return self._json(200, self.server.checker.check(before, after))

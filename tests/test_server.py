@@ -178,6 +178,18 @@ class Server(unittest.TestCase):
         status, _h, _b = self.s.raw("POST", "/api/check",
                                     {**host, "Content-Type": "application/json", "Content-Length": "-5"})
         self.assertEqual(status, 400)
+        t0 = time.monotonic()                           # an absurd length: refused at once
+        status, _h, _b = self.s.raw("POST", "/api/check", {**host, "Content-Type": "application/json",
+                                                           "Content-Length": "99999999999"})
+        self.assertEqual(status, 413)
+        self.assertLess(time.monotonic() - t0, 5)
+
+    def test_file_names_no_file_could_have_are_refused_not_crashed(self):
+        # found by the live test: a NUL made the file system raise, and the proxy said 502
+        for path in ("/index.html%00.py", "/%01", "/js/app.js%0d%0aX-Injected:%201"):
+            with self.subTest(path=path):
+                self.assertEqual(self.request(path)[0], 400)
+        self.assertEqual(self.request("/js/app.js")[0], 200)
 
 
 class Defences(unittest.TestCase):
