@@ -61,6 +61,15 @@ def build_parser() -> argparse.ArgumentParser:
                         "machines on the network (or a Tailscale tailnet) reach it")
     s.add_argument("--port", type=int, default=8000)
     s.add_argument("--open", action="store_true", help="open the website in the browser")
+    s.add_argument("--public-host", action="append", default=[], metavar="NAME",
+                   help="a public host name an HTTPS proxy forwards to this server (e.g. a "
+                        "Tailscale Funnel name); only this computer's names and these are answered")
+    s.add_argument("--allow-origin", action="append", default=None, metavar="URL",
+                   help="a website allowed to call the API from a browser (default: "
+                        "https://magellan-code.pages.dev); repeat for more")
+    s.add_argument("--behind-proxy", action="store_true",
+                   help="trust X-Forwarded-For from a proxy on this computer, so rate limits "
+                        "count each real client")
 
     # TODO(qol): `--format markdown`: the checklist as a GitHub task list (`- [ ] **HIGH** ...`)
     #   to paste into a PR. Write it in output.py next to text(). Done when a test checks that
@@ -93,7 +102,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         from magellan_lite.server import serve
         try:
-            return serve(args.host, args.port, args.open)
+            return serve(args.host, args.port, args.open, public_hosts=tuple(args.public_host),
+                         origins=args.allow_origin, behind_proxy=args.behind_proxy)
         except OSError as exc:                       # the port is taken, usually
             print(f"magellan-lite: cannot listen on {args.host}:{args.port}: {exc}",
                   file=sys.stderr)
