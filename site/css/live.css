@@ -234,6 +234,11 @@ button.button { font: inherit; font-weight: 600; cursor: pointer; }
 .rule-card h3 { margin: 8px 0 6px; font-size: 1rem; }
 .rule-card p { margin: 0; }
 .rule-card.waiting { color: var(--text); background: transparent; border-style: dashed; box-shadow: none; }
+.rule-card.more {
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  background: transparent; border-style: dashed; box-shadow: none;
+}
+.rule-card.more h3 { margin: 0; font-size: 1.25rem; color: var(--accent); }
 .rule-top { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .tag {
   padding: 1px 8px; border: 1px solid var(--border); border-radius: 999px; color: var(--muted);
