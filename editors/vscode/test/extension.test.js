@@ -20,7 +20,8 @@ const TEAM = [{ name: "braxton", verdict: "block", findings: [
 /** Just enough of VS Code for the extension to run, recording what it was asked to do. */
 function fakeVscode(settings = {}) {
   const seen = { commands: {}, diagnostics: {}, messages: [], warnings: [], updates: [], answer: undefined,
-                 onSave: null, onConfig: null, trees: {}, views: {}, context: {}, opened: [] };
+                 onSave: null, onConfig: null, trees: {}, views: {}, context: {}, opened: [],
+                 onSelection: null, panels: [], shown: [] };
   class Range { constructor(...a) { this.a = a; } }
   class Diagnostic { constructor(range, message, severity) { Object.assign(this, { range, message, severity }); } }
   class ThemeColor { constructor(id) { this.id = id; } }
@@ -46,6 +47,7 @@ function fakeVscode(settings = {}) {
       }),
       onDidSaveTextDocument: (fn) => { seen.onSave = fn; return { dispose() {} }; },
       onDidChangeConfiguration: (fn) => { seen.onConfig = fn; return { dispose() {} }; },
+      openTextDocument: async (uri) => ({ uri }),
     },
     window: {
       createOutputChannel: () => ({ appendLine() {}, dispose() {} }),
@@ -57,6 +59,20 @@ function fakeVscode(settings = {}) {
         return (seen.views[id] = { dispose() {} });
       },
       registerFileDecorationProvider: (p) => { seen.badges = p; return { dispose() {} }; },
+      onDidChangeTextEditorSelection: (fn) => { seen.onSelection = fn; return { dispose() {} }; },
+      activeTextEditor: undefined, visibleTextEditors: [],
+      showTextDocument: async (doc, opts) => { seen.shown.push({ path: doc.uri.fsPath, ...opts }); },
+      // a map panel: what the extension posts to it, and a way to post to the extension as it
+      createWebviewPanel: () => {
+        const panel = { posted: [], viewColumn: 2, hear: null, gone: null,
+          webview: { cspSource: "vscode-resource:", asWebviewUri: (u) => u, html: "",
+            postMessage: (m) => { panel.posted.push(m); return Promise.resolve(true); },
+            onDidReceiveMessage: (fn) => { panel.hear = fn; return { dispose() {} }; } },
+          onDidDispose: (fn) => { panel.gone = fn; return { dispose() {} }; },
+          reveal() {}, dispose() { if (panel.gone) panel.gone(); } };
+        seen.panels.push(panel);
+        return panel;
+      },
     },
     languages: {
       createDiagnosticCollection: (name) => ({
@@ -317,4 +333,94 @@ test("showLow off hides low findings from Problems and the Checklist; turning it
   assert.deepEqual(files(), [path.join(ROOT, "sensor/api.py"), path.join(ROOT, "sensor/collector.py")].sort());
   assert.deepEqual(rules(), ["signature-break", "debug-leftover"]);
   assert.equal(py.checks().length, 1);                   // the last report again, not a new check
+});
+
+// -- the map follows the code ------------------------------------------------------------------
+const COLLECTOR = ["import os", "", "def collect(rows):", "    out = parse_record(rows)", "    return out",
+  "", "", "def sweep():", "    return collect([])", ""].join("\n");
+const MAPPED = { ...CHECK, map: { nodes: [
+  { id: "sensor.collector.collect", label: "collect", path: "sensor/collector.py", line: 3, kind: "function" },
+  { id: "sensor.collector.sweep", label: "sweep", path: "sensor/collector.py", line: 8, kind: "function" },
+], edges: [{ src: "sensor.collector.sweep", dst: "sensor.collector.collect", kind: "calls" }] } };
+
+/** An editor on sensor/collector.py with its cursor on ``line`` (1-based). */
+const editorAt = (line, rel = "sensor/collector.py") => ({
+  document: { uri: { scheme: "file", fsPath: path.join(ROOT, rel) }, getText: () => COLLECTOR },
+  selection: { active: { line: line - 1, character: 0 } }, viewColumn: 1,
+});
+const moved = (vscode, line, rel) => vscode.seen.onSelection({ textEditor: editorAt(line, rel) });
+const focuses = (panel) => panel.posted.filter((m) => m.type === "focus").map((m) => [m.id.split(".").pop(), !!m.quiet]);
+
+test("the open map follows the cursor to the definition it rests in; a closed one is never opened for it", async () => {
+  const vscode = fakeVscode();
+  const ext = activate({ subscriptions: [], extensionPath: EXTENSION },
+    { vscode, execFile: fakePython({ check: MAPPED }).execFile, followDelay: 5 });
+  await ext.first;
+  moved(vscode, 4);
+  await pause(20);
+  assert.equal(vscode.seen.panels.length, 0);            // no panel: nothing opens
+
+  vscode.window.activeTextEditor = editorAt(4);
+  ext.showMap();
+  const [panel] = vscode.seen.panels;
+  panel.hear({ type: "ready" });
+  assert.equal(panel.posted[0].type, "report");
+  // the panel just opened: it hears where the cursor is, quietly (it shows the whole map first)
+  assert.deepEqual(focuses(panel), [["collect", true]]);
+
+  moved(vscode, 9); moved(vscode, 8);                     // a burst of moves: one message
+  await pause(30);
+  assert.deepEqual(focuses(panel), [["collect", true], ["sweep", false]]);
+  moved(vscode, 9);                                       // the same definition: nothing new
+  moved(vscode, 1);                                       // outside them all: the map stays
+  await pause(30);
+  moved(vscode, 2, "sensor/elsewhere.py");                // a file the map doesn't know
+  await pause(30);
+  assert.equal(focuses(panel).length, 2);
+});
+
+test("opening code from the map opens it beside the panel, and does not move the map", async () => {
+  const vscode = fakeVscode();
+  const ext = activate({ subscriptions: [], extensionPath: EXTENSION },
+    { vscode, execFile: fakePython({ check: MAPPED }).execFile, followDelay: 5 });
+  await ext.first;
+  vscode.window.visibleTextEditors = [editorAt(9)];
+  ext.showMap();
+  const [panel] = vscode.seen.panels;
+  panel.hear({ type: "ready" });
+  moved(vscode, 9);
+  await pause(20);
+  assert.deepEqual(focuses(panel), [["sweep", false]]);
+
+  panel.hear({ type: "open", path: "sensor/collector.py", line: 3 });     // collect, clicked on the map
+  await pause(5);
+  assert.deepEqual(vscode.seen.shown.map((s) => [s.path, s.viewColumn]), [[path.join(ROOT, "sensor/collector.py"), 1]]);
+  moved(vscode, 3);                                       // the cursor lands there: not a click in the code
+  await pause(30);
+  assert.deepEqual(focuses(panel), [["sweep", false]]);
+  moved(vscode, 4);                                       // a click in collect, in the code: it follows
+  await pause(30);
+  assert.deepEqual(focuses(panel), [["sweep", false], ["collect", false]]);
+});
+
+test("a closed panel stops the following; a new one starts afresh", async () => {
+  const vscode = fakeVscode();
+  const ext = activate({ subscriptions: [], extensionPath: EXTENSION },
+    { vscode, execFile: fakePython({ check: MAPPED }).execFile, followDelay: 5 });
+  await ext.first;
+  ext.showMap();
+  const [first] = vscode.seen.panels;
+  first.hear({ type: "ready" });
+  moved(vscode, 4);
+  await pause(20);
+  first.dispose();
+  assert.equal(ext.state.panel, null);
+  moved(vscode, 9);
+  await pause(20);
+  assert.deepEqual(focuses(first), [["collect", false]]);
+  vscode.window.activeTextEditor = editorAt(4);
+  ext.showMap();
+  const second = vscode.seen.panels[1];
+  second.hear({ type: "ready" });
+  assert.deepEqual(focuses(second), [["collect", true]]);   // told again, though it was told before
 });

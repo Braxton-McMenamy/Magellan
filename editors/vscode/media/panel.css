@@ -87,13 +87,13 @@ code { font-family: var(--mono); color: inherit; background: none; padding: 0; b
 @keyframes beckon { 50% { transform: scale(1.05); filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 45%, transparent)); } }
 .welcome p { margin: 0 0 14px; font-size: 1.08em; color: var(--muted); }
 
-/* -- the verdict -------------------------------------------------------------------------- */
+/* -- the verdict, in a line above the map --------------------------------------------------- */
 .report { transition: opacity .3s; }
 body.busy .report { opacity: .5; }
 .verdict-card {
   --v: var(--review);
-  display: flex; align-items: center; gap: 14px 18px; padding: 16px 18px; margin-bottom: 14px;
-  border: 1px solid var(--border); border-radius: 12px;
+  display: flex; align-items: center; gap: 8px 14px; padding: 8px 14px; margin-bottom: 12px;
+  border: 1px solid var(--border); border-radius: 10px;
   background:
     radial-gradient(70% 160% at 0% 50%, color-mix(in srgb, var(--v) 13%, transparent), transparent 70%),
     var(--card);
@@ -101,19 +101,19 @@ body.busy .report { opacity: .5; }
 .verdict-card.ok { --v: var(--ok); }
 .verdict-card.block { --v: var(--block); }
 .verdict {
-  flex: none; padding: 5px 18px; border: 3px solid var(--v); border-radius: 10px; color: var(--v);
+  flex: none; padding: 2px 12px; border: 2px solid var(--v); border-radius: 7px; color: var(--v);
   background: color-mix(in srgb, var(--v) 10%, transparent);
-  font: 900 1.65em/1.1 var(--font); letter-spacing: .08em; text-transform: uppercase;
+  font: 900 1.12em/1.2 var(--font); letter-spacing: .08em; text-transform: uppercase;
 }
 body:not(.vscode-light):not(.vscode-high-contrast-light) .verdict {
   text-shadow: 0 0 22px color-mix(in srgb, var(--v) 60%, transparent);
 }
 .verdict.pop { animation: pop .45s cubic-bezier(.2, 1.6, .4, 1); }
 @keyframes pop { from { transform: scale(1.6); opacity: 0; } }
-.verdict-text { min-width: 0; }
-.summary { margin: 0; font-size: 1.12em; font-weight: 600; line-height: 1.35; }
-.why { margin: 2px 0 0; color: var(--muted); }
-.chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 0; padding: 0; list-style: none; }
+.verdict-text { min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+.summary { margin: 0; font-weight: 600; line-height: 1.35; }
+.why { margin: 0; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 12px; padding: 0; list-style: none; }
 .chip {
   --c: var(--muted);
   display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; border-radius: 999px;
@@ -137,7 +137,8 @@ body:not(.vscode-light):not(.vscode-high-contrast-light) .verdict {
   color: var(--stage-text); border: 1px solid var(--stage-border); border-radius: 14px;
   box-shadow: 0 24px 56px -30px rgba(0, 0, 0, .7);
 }
-.stage-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
+.stage-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 10px; margin-bottom: 4px; }
+.stage-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
 .stage h2 { margin: 0; color: var(--accent); font-size: .8em; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
 .stage-lede { margin: 0 0 12px; max-width: 62em; color: var(--stage-text); font-size: 1.04em; }
 .stage-lede em { font-style: normal; color: var(--accent); }
@@ -151,14 +152,6 @@ body:not(.vscode-light):not(.vscode-high-contrast-light) .verdict {
 .pill:hover { color: #fff; border-color: rgba(255, 255, 255, .38); }
 
 /* -- the lists ---------------------------------------------------------------------------- */
-.cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px 24px; align-items: start; }
-.part { margin-bottom: 20px; }
-.cols .part { margin-bottom: 0; }
-.cols + .part { margin-top: 22px; }
-.part h2 {
-  display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--muted);
-  font-size: .8em; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
-}
 .count {
   min-width: 18px; padding: 0 6px; border-radius: 9px; text-align: center; letter-spacing: 0;
   background: var(--vscode-badge-background, rgba(128, 128, 128, .3));
@@ -268,16 +261,11 @@ body:not(.vscode-light):not(.vscode-high-contrast-light) .verdict {
 .foot { margin-top: 22px; color: var(--muted); font-size: .82em; opacity: .8; text-align: center; }
 
 /* -- a narrow panel ----------------------------------------------------------------------- */
-@media (max-width: 720px) {
-  .cols { grid-template-columns: minmax(0, 1fr); }
-}
 @media (max-width: 480px) {
   body { padding: 10px 12px 16px; }
-  .verdict-card { padding: 14px; gap: 12px; }
-  .verdict { font-size: 1.4em; padding: 4px 14px; }
+  .verdict-card { padding: 8px 10px; gap: 8px 10px; }
   .stage { padding: 12px 10px 10px; border-radius: 12px; }
   .stage .map-box { padding: 4px; }
-  .verdict-card { flex-direction: column; align-items: flex-start; }
   .bar { width: 44px; }
 }
 
@@ -286,8 +274,8 @@ body:not(.vscode-light):not(.vscode-high-contrast-light) .verdict {
   .report { transition: none; }
 }
 
-/* the stage's tools: Flow / 3D, and Replay (flow only) */
-.stage-tools { display: flex; align-items: center; gap: 8px; }
+/* the stage's tools: Local / Global, the lock, Flow / 3D (a neighbourhood's), Replay (Flow's) */
+.stage-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .stage .view-switch { border-color: #2a3b52; }
 .stage .view-switch button { color: #93a1b1; }
 .stage .view-switch button[aria-pressed="true"] { background: #f2a93b; color: #111; }
@@ -300,3 +288,94 @@ body:not(.vscode-light):not(.vscode-high-contrast-light) .verdict {
 .stage:has(#graph.is-3d) .sg-tabs { --sg-tab-bg: #0b131e; }
 .stage .sg-tabs:not([hidden]) + .map-box { border-top: 0; border-radius: 0 0 12px 12px; }
 .stage .sg-tabs:not([hidden]) + .map-box .scene3d { border-radius: 0 0 12px 12px; }
+
+/* -- Local / Global and the lock (the full Magellan's graph tab: its toggle and its padlock) -- */
+.lock {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 26px; padding: 0;
+  border: 1px solid #2a3b52; border-radius: 7px; background: transparent; color: #93a1b1; cursor: pointer;
+}
+.lock:hover { color: #e6edf3; border-color: #3b5272; background: rgba(255, 255, 255, .05); }
+.lock .shut, .lock[aria-pressed="true"] .open { display: none; }
+.lock[aria-pressed="true"] .shut { display: block; }
+.lock[aria-pressed="true"] { background: #2b2414; border-color: #f2a93b; color: #f2a93b; }
+.lock:focus-visible { outline: 2px solid #f2a93b; outline-offset: 1px; }
+.lockbadge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 1px 9px 1px 6px; border-radius: 999px;
+  background: #2b2414; color: #f2c879; font-size: .82em; line-height: 18px; white-space: nowrap;
+}
+.lockbadge svg { width: 12px; height: 12px; flex: none; }
+/* the Local tab: a ring (the cursor's place), not the whole map's diamond; grey and square while locked */
+.stage .sg-tab.home.local .sg-tab-name::before {
+  content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; vertical-align: 1px;
+  border: 2px solid #f2a93b; border-radius: 50%;
+}
+.stage .sg-tab.home.local.locked .sg-tab-name::before { border-color: #93a1b1; background: #93a1b1; border-radius: 2px; }
+.local-empty {
+  display: grid; place-items: center; min-height: 220px; margin: 0; padding: 24px; text-align: center;
+  color: #93a1b1; font-size: 1.02em;
+}
+
+/* -- the findings: a button above, a drawer over the map's right side ----------------------- */
+.findings-btn .n {
+  min-width: 18px; padding: 0 6px; border-radius: 9px; text-align: center; font-size: .9em; line-height: 17px;
+  font-variant-numeric: tabular-nums;
+  background: var(--vscode-badge-background, rgba(128, 128, 128, .3)); color: var(--vscode-badge-foreground, var(--text));
+}
+.findings-btn.worst-critical .n, .findings-btn.worst-high .n { background: var(--block); color: #fff; }
+.findings-btn.worst-medium .n { background: var(--review); color: #111; }
+.findings-btn[aria-expanded="true"] {
+  background: var(--vscode-button-background, #0078d4); color: var(--vscode-button-foreground, #fff);
+}
+.map-area { position: relative; --drawer-w: min(390px, calc(100% - 28px)); }
+.map-area.has-drawer .map-box { min-height: 440px; }
+/* the drawer covers the map's right side: the 3D view's tools move out from under it */
+.map-area.has-drawer .scene3d-bar { left: 10px; right: calc(var(--drawer-w) + 12px); }
+.map-area.has-drawer .scene3d-hint { display: none; }
+.stage .sg-tabs:not([hidden]) + .map-area > .map-box { border-top: 0; border-radius: 0 0 12px 12px; }
+.stage .sg-tabs:not([hidden]) + .map-area > .map-box .scene3d { border-radius: 0 0 12px 12px; }
+.drawer {
+  /* the stage's colours: the drawer is part of it, dark in any theme */
+  --bg: #0b131e; --card: #101b2a; --card-hover: #18263a; --border: #26384f; --link: #6cb6ff;
+  position: absolute; top: 1px; right: 1px; bottom: 1px; z-index: 5; width: var(--drawer-w);
+  display: flex; flex-direction: column; overflow: hidden;
+  background: #0d1622; color: var(--stage-text); border-left: 1px solid #2f4462; border-radius: 0 11px 11px 0;
+  box-shadow: -14px 0 32px -8px rgba(0, 0, 0, .6);
+}
+.stage .sg-tabs:not([hidden]) + .map-area > .drawer { border-top-right-radius: 0; }
+.drawer-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: none;
+  padding: 9px 8px 8px 14px; border-bottom: 1px solid var(--border);
+}
+.drawer-head h3 {
+  margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--accent); font-size: .8em; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+}
+.drawer-head h3:focus { outline: none; }
+.drawer-head h3:focus-visible { outline: 1px solid var(--focus); outline-offset: 2px; }
+.drawer-x {
+  flex: none; width: 26px; height: 24px; padding: 0; border: 0; border-radius: 5px; cursor: pointer;
+  background: none; color: #93a1b1; font: 17px/1 var(--font);
+}
+.drawer-x:hover, .drawer-x:focus-visible { color: #fff; background: rgba(255, 255, 255, .1); }
+.drawer-body { flex: 1; min-height: 0; overflow: auto; padding: 12px 12px 14px; scrollbar-width: thin; }
+.drawer .findings { gap: 8px; }
+.drawer .issue { padding: 10px 12px 11px 15px; }
+.drawer .f-msg { font-size: 1em; }
+.drawer .chip { background: transparent; }
+.drawer .count { background: #26384f; color: #e6edf3; }
+.d-where { margin: 0 0 10px; }
+.d-where code { display: block; overflow-wrap: anywhere; font-size: .92em; color: #93a1b1; }
+.d-where small { display: block; color: #93a1b1; font: .85em var(--mono); }
+.d-open { margin: 0 0 12px; }
+.d-all { margin-top: 12px; font-family: var(--font); }
+.fold { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+.fold summary {
+  display: flex; align-items: center; gap: 8px; cursor: pointer; color: #93a1b1; list-style: none;
+  font-size: .8em; font-weight: 700; letter-spacing: .09em; text-transform: uppercase;
+}
+.fold summary::-webkit-details-marker { display: none; }
+.fold summary::before { content: "\25B8"; font-size: 1.1em; transition: transform .15s; }
+.fold[open] summary::before { transform: rotate(90deg); }
+.fold summary:focus-visible { outline: 1px solid var(--focus); outline-offset: 2px; }
+.fold > :not(summary) { margin-top: 8px; }
+.drawer .changes { grid-template-columns: minmax(0, 1fr); }

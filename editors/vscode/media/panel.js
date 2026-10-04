@@ -1,9 +1,12 @@
-// The map panel: the last check's verdict, the map of the change and what it reaches, and the
-// checklist. The map is drawn by the website's renderer (map.js), so it looks the same here,
-// on the website's incident stories, and on the account pages to come.
+// The map panel: the last check's verdict in a line, and the map, alone. The findings (and what
+// the change reaches, and what changed) open beside the map in a drawer: from the Findings
+// button, or by clicking a dot that has a finding. The map is drawn by the website's renderers
+// (map.js, scene3d.js), so it looks the same here, on the website's Scene and in the Team suite.
 //
-// What the extension sends: { type: "report", report, repo } after each check, and
-// { type: "repo", repo } when it finds the project's GitHub repository ("owner/name" or null).
+// What the extension sends: { type: "report", report, repo } after each check,
+// { type: "repo", repo } when it finds the project's GitHub repository ("owner/name" or null),
+// and { type: "focus", id, quiet } when the editor's cursor rests in a definition on the map
+// (quiet: the panel just opened, so fill the Local view in without bringing it on screen).
 // What the page sends: { type: "ready" } once it has loaded, { type: "open", path, line } to
 // open a file at a line, and { type: "run", command } from its buttons.
 //
@@ -15,6 +18,11 @@
   const $ = (s) => document.querySelector(s);
   const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   const short = (name) => String(name ?? "").split(".").slice(-2).join(".");   // module.function
+
+  // what the panel keeps while it lives (hidden and shown again): the Local view's Flow or 3D,
+  // Local or Global, the lock, and whether the findings are open
+  const saved = () => (api.getState && api.getState()) || {};
+  const remember = (patch) => { if (api.setState) api.setState({ ...saved(), ...patch }); };
 
   // an element with attributes and children: strings become text nodes, never HTML
   function h(tag, attrs = {}, ...kids) {
@@ -37,15 +45,14 @@
   const SEVERITIES = ["critical", "high", "medium", "low"];
   const KINDS = ["removed", "signature", "renamed", "value", "body", "added"];
   const WHY = {
-    block: "Don't commit yet: fix what the checklist found first.",
-    review: "Look over what the checklist found before you commit.",
+    block: "Don't commit yet: fix what Findings lists first.",
+    review: "Look over the findings before you commit.",
     ok: "Nothing on the checklist fired for what this change touched.",
   };
   const MAX_REACH = 12;
 
   let current = null;       // the report on screen
   let lastVerdict = null;   // so the verdict only pops when it changes
-  let lastChanges = null;   // so the map only replays when the change itself is new
 
   // -- talking to the extension ------------------------------------------------------------
   const open = (path, line) => {
@@ -85,7 +92,7 @@
     $("#suite").hidden = !repo;      // the Team suite reads the repository from GitHub
   }
 
-  // -- the verdict -------------------------------------------------------------------------
+  // -- the verdict, in a line --------------------------------------------------------------
   function drawVerdict(report, findings, changes, affected) {
     const verdict = WHY[report.verdict] ? report.verdict : "review";
     const pop = verdict !== lastVerdict;
@@ -98,8 +105,7 @@
       h("span", { class: `verdict${pop ? " pop" : ""}` }, verdict),
       h("div", { class: "verdict-text" },
         h("p", { class: "summary" }, summary),
-        h("p", { class: "why" }, changes.length ? WHY[verdict] : "No definition changed, so there is nothing to check yet."),
-        h("ul", { class: "chips", "aria-label": "In numbers" }, chips(findings, changes, affected))));
+        h("p", { class: "why" }, changes.length ? WHY[verdict] : "No definition changed, so there is nothing to check yet.")));
   }
 
   // small counts: findings by severity, changes by kind, files touched, how far it reaches
@@ -135,53 +141,99 @@
         : "No definition changed, so there is nothing to follow yet."]);
   }
 
-  // Two views of the same map, as on the website: Flow (the change, hop by hop: map.js) and 3D
-  // (the whole project as clusters on a sphere: graph3d.js through scene3d.js). The whole map's
-  // choice is kept in the webview's state, so it survives the panel being hidden and shown.
+  // The map is a strip of tabs, each with its own box and view (a hidden 3D view keeps its
+  // camera); [ and ] step through them:
+  //   the whole map   Global: the whole project in 3D, coloured by the change. 3D only: as a
+  //                   flow, a whole project is too big to read
+  //   Local           the definition the editor's cursor is in, and its neighbourhood
+  //                   (subgraph.js); one tab, which follows the cursor. Its own Flow or 3D
+  //   sub-graphs      right-click a dot: it, what depends on it and what it uses, or a whole file
+  //                   and what touches it. Each its own Flow or 3D
   //
-  // Right-click a definition for its sub-graph (subgraph.js): it, what depends on it and what it
-  // uses, or a whole file and what touches it, in a tab of its own above the map. Each tab keeps
-  // its own map, view and box (a hidden 3D view keeps its camera); [ and ] step through them.
-  const SG = MagellanSubgraph, UI = MagellanSubgraphUI;
+  // As in the full Magellan's graph tab: Local follows the cursor and Global shows the whole
+  // map; the lock stops clicks in the code from moving the map (L, or the padlock).
+  const SG = MagellanSubgraph, UI = MagellanSubgraphUI, F = MagellanFindings;
   const MAIN_TITLE = $("#stage-title").textContent;
-  let scenes = [];          // the whole map first: { id, spec, mode, pane, view, sub, title, line, stale, width }
+  let scenes = [];          // { id, kind: "whole" | "local" | "sub", spec, mode, pane, view, sub, title, line, stale, width }
   let shown = null;         // the scene on screen
   let visited = [];         // the order tabs were shown in, to go back to when one closes
   let seq = 0;
+  let scope = saved().scope === "global" ? "global" : "local";   // local: a click in the code shows its neighbourhood
+  let locked = saved().locked === true;
+  let pending = null;       // the cursor's latest definition, kept while locked
 
-  function newScene(spec, mode) {
+  function newScene(kind, spec, mode) {
     const pane = h("div", { class: "scene-pane", hidden: true });
     $("#graph").append(pane);
-    const scene = { id: `s${seq++}`, spec, mode, pane, view: null, sub: null, title: "", line: "", stale: true, width: 0 };
+    const scene = { id: `s${seq++}`, kind, spec, mode, pane, view: null, sub: null, title: "", line: "", stale: true, width: 0 };
     scenes.push(scene);
     return scene;
   }
-  const main = () => scenes[0] || newScene(null, (api.getState && api.getState() && api.getState().view) || "flow");
+  const whole = () => scenes[0] || newScene("whole", null, "3d");
+  /** The Local tab, second after the whole map; made the first time it is needed. */
+  function local() {
+    let scene = scenes.find((s) => s.kind === "local");
+    if (!scene) {
+      whole();
+      scene = newScene("local", null, saved().localView === "3d" ? "3d" : "flow");
+      scenes = [scenes[0], scene, ...scenes.slice(1).filter((s) => s !== scene)];
+    }
+    return scene;
+  }
   const wholeMap = () => current.map || MagellanMap.fromReport(current);
 
-  /** A scene's map now: the report's, or the sub-graph drawn from it (Flow reads it its way). */
+  /** A scene's map now (and its title and line): the report's, or a part of it. Null: Local
+   *  before the cursor has been in a definition. */
   function mapOf(scene) {
-    if (!scene.spec) return wholeMap();
+    if (scene.kind === "whole") {
+      scene.title = "Whole map";
+      return wholeMap();
+    }
+    if (!scene.spec) {
+      scene.title = "Local";
+      scene.line = "It follows the cursor in the editor.";
+      return null;
+    }
     const sub = SG.build(wholeMap(), scene.spec);
     if (sub.nodes.length || !scene.sub) scene.sub = sub;        // gone from the new check: keep the last
-    scene.title = SG.title(scene.sub);
-    scene.line = SG.describe(scene.sub) + (sub.nodes.length ? "" : " (Not in the latest check.)");
+    const gone = sub.nodes.length ? "" : " (Not in the latest check.)";
+    if (scene.kind === "local") {
+      const n = scene.sub.nodes.length;
+      scene.title = `Local: ${SG.subject(scene.sub)}${n ? ` · ${scene.sub.capped ? `${n} of ${scene.sub.total}` : n}` : ""}`;
+    } else scene.title = SG.title(scene.sub);
+    scene.line = SG.describe(scene.sub) + gone;
     return scene.mode === "flow" ? SG.flow(scene.sub) : scene.sub;
+  }
+
+  /** The whole map's own node: a sub-graph's Flow redraws them (its "picked", its hops). */
+  const original = (node) => (current && wholeMap().nodes.find((n) => n.id === node.id)) || node;
+  const findingsOf = (node) => (current ? F.of(original(node), current.findings || [], wholeMap().nodes) : []);
+
+  /** A click on a dot: its findings, when it has any; otherwise, in Flow, its file. */
+  function clicked(node, from, openIt) {
+    if (findingsOf(node).length) return openDrawer({ kind: "node", id: node.id }, from);
+    if (openIt) open(node.path, node.line);
+    return null;
   }
 
   /** Draw a scene into its box (on screen: the renderers size to it). */
   function drawScene(scene, animate) {
     if (scene.view && scene.view.destroy) scene.view.destroy();
+    scene.view = null;
     const map = mapOf(scene);
     const box = scene.pane;
     scene.width = box.clientWidth;
     scene.stale = false;
+    if (!map) {
+      fill(box, h("p", { class: "local-empty" }, "Click into a function or class in the editor: it and its neighbourhood show here."));
+      return;
+    }
     const onContext = (node, event, g) => menu(scene, node, event, g);
     if (scene.mode === "3d") {
-      // exploring turns and picks; a double-click opens the file
+      // a click picks (and shows a dot's findings); a double-click opens the file
       scene.view = MagellanScene3D.render(box, map, {
-        label: scene.spec ? scene.title : "The whole project in 3D, coloured by the change",
-        onPick() {},
+        label: scene.kind === "whole" ? "The whole project in 3D, coloured by the change" : scene.title,
+        onPick(node) { clicked(node, scene.pane.querySelector("canvas"), false); },
         onOpen(node) { open(node.path, node.line); },
         onContext,
       });
@@ -189,11 +241,11 @@
     }
     scene.view = MagellanMap.render(box, map, {
       animate,
-      heads: scene.spec ? SG.heads(scene.sub) : undefined,
-      // a click (or Enter) on a definition opens its file at its line
+      heads: scene.kind === "local" ? { 0: "at the cursor" } : SG.heads(scene.sub),
+      // a click (or Enter) on a definition opens its file at its line, or its findings
       onPick(node, g) {
         mark(box, g);
-        open(node.path, node.line);
+        clicked(node, g, true);
       },
       onContext,
     });
@@ -204,7 +256,7 @@
     if (g) g.classList.add("picked");
   };
 
-  /** Put a scene on screen: its box, its view's switch, its title; draw it if it is out of date. */
+  /** Put a scene on screen: its box, the switches, its title; draw it if it is out of date. */
   function show(scene, animate = false) {
     UI.close();
     if (shown && shown !== scene) {
@@ -214,73 +266,158 @@
     shown = scene;
     visited = visited.filter((s) => s !== scene).concat(scene);
     scene.pane.hidden = false;
-    $("#replay").hidden = scene.mode === "3d";
     $("#graph").classList.toggle("is-3d", scene.mode === "3d");
-    $("#views").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === scene.mode)));
     if (scene.stale || !scene.view) drawScene(scene, animate);
-    else if (scene.view.view) { scene.view.view.resize(); scene.view.view.dirty = true; scene.view.view.start(); }
-    $("#stage-title").textContent = scene.spec ? scene.title : MAIN_TITLE;
-    if (scene.spec) fill($("#stage-lede"), scene.line);
-    else drawLede(current.changes || [], current.affected || []);
+    else if (scene.view && scene.view.view) { scene.view.view.resize(); scene.view.view.dirty = true; scene.view.view.start(); }
+    $("#stage-title").textContent = scene.kind === "whole" ? MAIN_TITLE : scene.title;
+    if (scene.kind === "whole") drawLede(current.changes || [], current.affected || []);
+    else fill($("#stage-lede"), scene.line);
+    chrome();
     strip();
+  }
+
+  /** The switches and words around the map, for the scene on screen and the lock. */
+  function chrome() {
+    const scene = shown;
+    if (!scene) return;
+    // Local or Global: which of the two is on screen (neither, on a sub-graph)
+    $("#scope").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed",
+      String(b.dataset.scope === (scene.kind === "local" ? "local" : scene.kind === "whole" ? "global" : ""))));
+    // Flow is for a neighbourhood: the whole map is 3D only
+    $("#views").hidden = scene.kind === "whole";
+    $("#views").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === scene.mode)));
+    $("#replay").hidden = scene.mode !== "flow" || !scene.view;
+    // the lock: open, the map follows the editor's cursor; shut, clicking around the code
+    // leaves it alone (a new check still redraws it)
+    const lock = $("#lock");
+    lock.setAttribute("aria-pressed", String(locked));
+    lock.title = locked ? "Locked: clicking in the editor leaves the map alone. Click to unlock (L)"
+      : "Unlocked: the map follows the editor's cursor. Click to lock it (L)";
+    $("#lockbadge").hidden = !locked;
+    $("#stage-foot").textContent = scene.mode === "3d"
+      ? "Click a dot with a red ring for its findings; double-click a dot to open it; right-click it for its sub-graph."
+      : "Click a definition to open it, or to see its findings when it has any; right-click it for its sub-graph. Each hop fades the score: a call ×0.9, reading a value ×0.85.";
   }
 
   /** Open a sub-graph in a tab of its own, or show the tab that has it. */
   function openSub(spec) {
-    const had = scenes.find((s) => SG.same(s.spec, spec));
+    const had = scenes.find((s) => s.kind === "sub" && SG.same(s.spec, spec));
     if (had) return show(had);
     if (!SG.build(wholeMap(), spec).nodes.length) return;
-    show(newScene(spec, shown ? shown.mode : main().mode), true);
+    show(newScene("sub", spec, shown ? shown.mode : "3d"), true);
   }
 
   /** Close a sub-graph's tab, back to the one shown before it. */
   function closeScene(scene) {
-    if (!scene || !scene.spec) return;
+    if (!scene || scene.kind !== "sub") return;
     if (scene.view && scene.view.destroy) scene.view.destroy();
     scene.pane.remove();
     scenes = scenes.filter((s) => s !== scene);
     visited = visited.filter((s) => s !== scene);
-    if (shown === scene) { shown = null; show(visited[visited.length - 1] || main()); } else strip();
+    if (shown === scene) { shown = null; show(visited[visited.length - 1] || whole()); } else strip();
+  }
+
+  /** A tab chosen (a click, or [ and ]): the whole map is Global, Local is Local. */
+  function pickScene(scene) {
+    if (!scene) return;
+    if (scene.kind !== "sub") setScope(scene.kind === "local" ? "local" : "global", false);
+    show(scene);
   }
 
   function strip() {
     UI.strip($("#scenes"), scenes.map((s) => ({
-      id: s.id, closable: !!s.spec, title: s.spec ? s.title : "Whole map",
-      hint: s.spec ? s.line : "The change, and the whole project around it",
+      id: s.id, closable: s.kind === "sub", title: s.title || (s.kind === "whole" ? "Whole map" : "Local"),
+      hint: s.kind === "whole" ? "Global: the whole project, coloured by the change"
+        : s.kind === "local" ? `Local: follows the cursor in the editor${locked ? " (locked)" : ""}. ${s.line}` : s.line,
     })), shown && shown.id, {
-      onPick: (t) => show(scenes.find((s) => s.id === t.id)),
+      onPick: (t) => pickScene(scenes.find((s) => s.id === t.id)),
       onClose: (t) => closeScene(scenes.find((s) => s.id === t.id)),
       away: () => shown && shown.pane.querySelector("canvas, .node[tabindex]"),
     });
+    // the Local tab gets its own mark (subgraph-ui.js gives every tab that can't close the
+    // whole map's)
+    const i = scenes.findIndex((s) => s.kind === "local");
+    const tab = i >= 0 && $("#scenes").children[i];
+    if (tab) { tab.classList.add("local"); tab.classList.toggle("locked", locked); }
   }
   UI.keys((step) => {
     if (scenes.length < 2 || !shown) return;
-    show(scenes[(scenes.indexOf(shown) + step + scenes.length) % scenes.length]);
+    pickScene(scenes[(scenes.indexOf(shown) + step + scenes.length) % scenes.length]);
   });
 
-  /** The right-click menu on a definition: its sub-graph, its file's, and opening it. */
+  /** The right-click menu on a definition: its sub-graph, its file's, its findings, opening it. */
   function menu(scene, node, event, g) {
     mark(scene.pane, g);
     const file = node.path ? node.path.split("/").pop() : "";
+    const found = findingsOf(node).length;
     UI.menu(event, node.label || node.id, [
       { label: "Show sub-graph", run: () => openSub({ ids: [node.id] }) },
       node.path && { label: "Sub-graph of its file", detail: file, run: () => openSub({ file: node.path }) },
+      found && { label: "Show its findings", detail: String(found), run: () => openDrawer({ kind: "node", id: node.id }, g) },
       node.path && { label: "Open file", detail: `line ${node.line}`, run: () => open(node.path, node.line) },
     ]);
   }
 
+  // -- Local and Global, and the lock ------------------------------------------------------
+  /** Local: show the cursor's definition (and follow it); Global: the whole map. */
+  function setScope(to, showIt = true) {
+    scope = to === "global" ? "global" : "local";
+    remember({ scope });
+    if (showIt && current) show(scope === "local" ? local() : whole());
+  }
+
+  /** The cursor rests in a definition on the map (the extension found which). */
+  function onFocus(d) {
+    if (!d || !d.id) return;
+    if (locked) { pending = d; return; }
+    follow(d);
+  }
+  function follow(d) {
+    pending = null;
+    const scene = local();
+    const spec = { ids: [String(d.id)] };
+    if (!SG.same(scene.spec, spec)) {
+      scene.spec = spec;
+      scene.sub = null;
+      scene.stale = true;
+    }
+    if (!current) return;
+    // on screen when following (unless a sub-graph tab is: that was opened on purpose)
+    if (shown === scene || (!d.quiet && scope === "local" && (!shown || shown.kind !== "sub"))) show(scene);
+    else { mapOf(scene); strip(); }
+  }
+
+  function setLocked(on) {
+    locked = !!on;
+    remember({ locked });
+    chrome();
+    strip();
+    if (!locked && pending) follow(pending);        // catch up with the cursor
+  }
+
+  $("#scope").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => setScope(b.dataset.scope)));
+  $("#lock").addEventListener("click", () => setLocked(!locked));
+  // L locks and unlocks, as in the full Magellan's graph tab (not while typing, nor with a
+  // modifier: Ctrl+L and the like are VS Code's)
+  addEventListener("keydown", (e) => {
+    if (String(e.key || "").toLowerCase() !== "l" || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target && e.target.tagName) || "")) return;
+    if (!current) return;
+    e.preventDefault();
+    setLocked(!locked);
+  });
+
   /** A new report: every scene draws from it, the one on screen now and the rest when shown. */
-  function drawMap(report, animate) {
+  function drawMap() {
     scenes.forEach((s) => { s.stale = true; });
-    const scene = shown || main();
-    show(scene, animate && !scene.spec);
+    show(shown || whole());
   }
 
   $("#replay").addEventListener("click", () => shown && shown.view && shown.view.play && shown.view.play());
   $("#views").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
-    if (!shown || shown.mode === b.dataset.view) return;
+    if (!shown || shown.kind === "whole" || shown.mode === b.dataset.view) return;
     shown.mode = b.dataset.view;
-    if (!shown.spec && api.setState) api.setState({ ...(api.getState && api.getState()), view: shown.mode });
+    if (shown.kind === "local") remember({ localView: shown.mode });
     shown.stale = true;
     if (current) show(shown, shown.mode === "flow");
   }));
@@ -291,22 +428,93 @@
   new ResizeObserver(() => {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
-      if (!current || !shown || shown.mode === "3d") return;     // the 3D view sizes itself
+      if (!current || !shown || shown.mode === "3d" || !shown.view) return;     // the 3D view sizes itself
       const w = shown.pane.clientWidth;
       if (w && Math.abs(w - shown.width) > 24) drawScene(shown, false);
     }, 150);
   }).observe($("#graph"));
 
-  // -- the checklist -----------------------------------------------------------------------
-  const heading = (text, n) => h("h2", {}, text, h("span", { class: "count" }, String(n)));
+  // -- the drawer: the findings, beside the map ----------------------------------------------
+  // { kind: "all" } (the Findings button: every finding, then what the change reaches and what
+  // changed) or { kind: "node", id } (a dot's own findings). Escape or × closes it and gives
+  // the keyboard back to what opened it.
+  let drawer = null, opener = null;
 
-  function drawChecklist(findings) {
-    const rank = (f) => (SEVERITIES.indexOf(f.severity) + 1 || 9);
-    const sorted = [...findings].sort((a, b) => rank(a) - rank(b));
-    fill($("#checklist"), heading("Checklist", findings.length), findings.length
-      ? h("ul", { class: "findings" }, sorted.map(finding))
-      : h("p", { class: "quiet" }, "Nothing to check in what this change touched."));
+  function openDrawer(what, from) {
+    drawer = what;
+    opener = from && from.focus ? from : document.activeElement;
+    remember({ drawer: what.kind === "all" ? "findings" : `node:${what.id}` });
+    drawDrawer();
+    $("#drawer-title").focus({ preventScroll: true });
+    return what;
   }
+
+  function closeDrawer(refocus = true) {
+    if (!drawer) return;
+    drawer = null;
+    remember({ drawer: null });
+    drawDrawer();
+    if (refocus && opener && opener.isConnected && opener.focus) opener.focus({ preventScroll: true });
+    opener = null;
+  }
+
+  function drawDrawer() {
+    const box = $("#drawer"), btn = $("#findings-btn");
+    const findings = (current && current.findings) || [];
+    // the button: how many, coloured by the worst
+    const worst = F.sorted(findings)[0];
+    $("#findings-n").textContent = String(findings.length);
+    btn.className = `btn findings-btn${worst ? ` worst-${SEVERITIES.includes(worst.severity) ? worst.severity : "low"}` : ""}`;
+    btn.setAttribute("aria-expanded", String(!!drawer && drawer.kind === "all"));
+    btn.setAttribute("aria-label", `Findings: ${findings.length}`);
+    btn.hidden = !current;
+    $("#map-area").classList.toggle("has-drawer", !!drawer);
+    box.hidden = !drawer || !current;
+    if (box.hidden) return;
+    if (drawer.kind === "node") {
+      const node = wholeMap().nodes.find((n) => n.id === drawer.id);
+      if (node) return nodeDrawer(node);
+      drawer = { kind: "all" };                       // gone from the new check: all of them
+    }
+    allDrawer(findings);
+  }
+
+  // every finding, worst first; then what the change reaches and what changed, folded
+  function allDrawer(findings) {
+    const affected = current.affected || [], changes = current.changes || [];
+    $("#drawer-title").textContent = `Findings · ${findings.length}`;
+    $("#drawer-close").setAttribute("aria-label", "Close the findings");
+    fill($("#drawer-body"),
+      h("ul", { class: "chips", "aria-label": "In numbers" }, chips(findings, changes, affected)),
+      findings.length ? h("ul", { class: "findings" }, F.sorted(findings).map(finding))
+        : h("p", { class: "quiet" }, "Nothing to check in what this change touched."),
+      fold("What it reaches", affected.length, affected.length
+        ? [h("ol", { class: "reach" }, affected.slice(0, MAX_REACH).map(reachRow)),
+          affected.length > MAX_REACH && h("p", { class: "quiet more" }, `and ${affected.length - MAX_REACH} more, further away`)]
+        : h("p", { class: "quiet" }, "Nothing else in the project calls the code this change edits.")),
+      fold("What changed", changes.length, changes.length
+        ? h("ul", { class: "changes" }, changes.map(changeRow))
+        : h("p", { class: "quiet" }, "No definition changed.")));
+  }
+
+  // one dot's findings, and a way to its code and to all the findings
+  function nodeDrawer(node) {
+    const mine = findingsOf(node), all = ((current && current.findings) || []).length;
+    const file = String(node.path || "");
+    $("#drawer-title").textContent = node.label || short(node.id);
+    $("#drawer-close").setAttribute("aria-label", `Close the findings in ${node.label || short(node.id)}`);
+    fill($("#drawer-body"),
+      h("p", { class: "d-where" }, h("code", {}, node.id), h("small", {}, `${file}:${node.line} · ${node.kind || "definition"}`)),
+      file && h("button", { type: "button", class: "btn primary d-open", onclick: () => open(file, node.line) },
+        `Open ${file.split("/").pop()} at line ${node.line}`),
+      mine.length ? h("ul", { class: "findings" }, mine.map(finding))
+        : h("p", { class: "quiet" }, "No findings here in the latest check."),
+      all > mine.length && h("button", { type: "button", class: "link d-all", onclick: () => openDrawer({ kind: "all" }, opener) },
+        `All findings (${all}) →`));
+  }
+
+  const fold = (title, n, body) => h("details", { class: "fold" },
+    h("summary", {}, title, h("span", { class: "count" }, String(n))), body);
 
   // one finding: a card with its severity's colour down the side
   function finding(f) {
@@ -319,15 +527,6 @@
       h("p", { class: "f-msg" }, f.message),
       f.detail && h("p", { class: "f-detail" }, f.detail),
       f.fix && h("p", { class: "f-fix" }, h("b", {}, "Fix"), f.fix));
-  }
-
-  // -- what it reaches ---------------------------------------------------------------------
-  function drawReach(affected) {
-    const more = affected.length - MAX_REACH;
-    fill($("#reach"), heading("What it reaches", affected.length), affected.length
-      ? h("ol", { class: "reach" }, affected.slice(0, MAX_REACH).map(reachRow))
-      : h("p", { class: "quiet" }, "Nothing else in the project calls the code this change edits."),
-      more > 0 && h("p", { class: "quiet more" }, `and ${more} more, further away`));
   }
 
   // one definition the change reaches: its name and file, a heat bar for its score, its hops
@@ -343,13 +542,6 @@
     h("span", { class: "heat" }, h("span", { class: "bar", "aria-hidden": "true" }, fill),
       h("b", { class: "score" }, score.toFixed(2))),
     h("span", { class: "hops" }, plural(Number(a.hops) || 0, "hop"))));
-  }
-
-  // -- what changed ------------------------------------------------------------------------
-  function drawChanges(changes) {
-    fill($("#changes"), heading("What changed", changes.length), changes.length
-      ? h("ul", { class: "changes" }, changes.map(changeRow))
-      : h("p", { class: "quiet" }, "No definition changed."));
   }
 
   // a change's detail, when it says more than its kind: a new signature reads old -> new
@@ -372,6 +564,18 @@
     detail(c)));
   }
 
+  $("#findings-btn").addEventListener("click", (e) => {
+    if (drawer && drawer.kind === "all") closeDrawer();
+    else openDrawer({ kind: "all" }, e.currentTarget);
+  });
+  $("#drawer-close").addEventListener("click", () => closeDrawer());
+  $("#drawer").addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    e.preventDefault();
+    e.stopPropagation();
+    closeDrawer();
+  });
+
   // -- what the check could not do: quiet, at the bottom -----------------------------------
   function drawErrors(errors) {
     const text = errors.map((e) => (typeof e === "string" ? e : (e && e.message) || JSON.stringify(e)));
@@ -384,6 +588,7 @@
 
   // -- the whole report --------------------------------------------------------------------
   function draw(report) {
+    const first = !current;
     current = report;
     busy(false);
     const findings = report.findings || [], affected = report.affected || [];
@@ -392,15 +597,18 @@
     $("#report").hidden = false;
     $("#again").hidden = false;
     drawVerdict(report, findings, changes, affected);
-    drawLede(changes, affected);
-    // the map plays the change spreading the first time, and again when the change is new
-    const key = changes.map((c) => `${c.kind} ${c.name}`).sort().join("\n");
-    drawMap(report, key !== lastChanges);
-    lastChanges = key;
-    drawChecklist(findings);
-    drawReach(affected);
-    drawChanges(changes);
+    drawMap();
+    if (first && pending && !locked) follow(pending);       // the cursor arrived before the map
+    if (first) reopen();
+    drawDrawer();
     drawErrors(report.errors || []);
+  }
+
+  // the panel was hidden with the findings open: open them again
+  function reopen() {
+    const was = saved().drawer;
+    if (was === "findings") drawer = { kind: "all" };
+    else if (typeof was === "string" && was.startsWith("node:")) drawer = { kind: "node", id: was.slice(5) };
   }
 
   window.addEventListener("message", (e) => {
@@ -410,6 +618,10 @@
       draw(d.report);
     }
     if (d.type === "repo") setRepo(d.repo);
+    if (d.type === "focus") {
+      if (current) onFocus(d);
+      else pending = d;                               // followed once the first report is drawn
+    }
   });
   api.postMessage({ type: "ready" });
 })();
