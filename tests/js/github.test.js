@@ -58,10 +58,33 @@ test("repositories are taken as owner/name or their GitHub address, and nothing 
   assert.equal(ok("Braxton-McMenamy/Magellan"), "Braxton-McMenamy/Magellan");
   assert.equal(ok("https://github.com/Braxton-McMenamy/Magellan.git"), "Braxton-McMenamy/Magellan");
   assert.equal(ok(" https://www.github.com/a/b/ "), "a/b");
-  for (const bad of ["", "a", "a/b/c", "../x", "a/..", "https://evil.example/a/b", "a/b?x=1",
-                     "a b/c", "javascript:alert(1)//a/b", "-a/b", "a/b#c"]) {
+  for (const bad of ["", "a", "../x", "a/..", "https://evil.example/a/b", "a/b?x=1",
+                     "a b/c", "javascript:alert(1)//a/b", "-a/b", "a/b#c", "a/b/../c", "a/b//c",
+                     "a/b/c d", "a/b/c?x"]) {
     assert.equal(gh.parseRepo(bad), null, bad);
   }
+});
+
+test("a folder after the name, or a GitHub folder link, reads that folder alone", async () => {
+  const { gh } = load(() => null);
+  assert.deepEqual({ ...gh.parseRepo("Braxton-McMenamy/Magellan/demo/live") },
+    { owner: "Braxton-McMenamy", repo: "Magellan", path: "demo/live" });
+  assert.equal(gh.parseRepo("https://github.com/Braxton-McMenamy/Magellan/tree/main/demo/live").path, "demo/live");
+  assert.equal(gh.parseRepo("a/b").path, undefined);
+
+  const { gh: gh2, calls } = load(github);
+  const repo = new gh2.Repo({ owner: "team", repo: "demo", path: "app" }, "");
+  assert.equal(repo.where, "team/demo/app");
+  assert.equal(repo.page, "https://github.com/team/demo/tree/HEAD/app");
+  const got = await repo.refresh(true);
+  // the folder's files, named from inside it; the work's new file too; nothing outside
+  assert.deepEqual(Object.keys(got.base).sort(), ["m.py", "u.py"]);
+  assert.deepEqual(Object.keys(got.works.alice).sort(), ["m.py", "new.py", "u.py"]);
+  assert.ok(calls.some((c) => c.url.endsWith("/app/m.py")));          // still fetched by its real path
+
+  const { gh: gh3 } = load(github);
+  await assert.rejects(new gh3.Repo({ owner: "team", repo: "demo", path: "nowhere" }, "").refresh(true),
+    /No source files in team\/demo\/nowhere/);
 });
 
 test("a token is checked for shape before it goes anywhere", () => {

@@ -1,7 +1,8 @@
 "use strict";
 // Which GitHub repository the open folder belongs to, with nothing to set up, so the sidebar can
 // show it and open the website's Team suite already connected to it (suite.html reads
-// ?repo=owner/name). It asks VS Code's own Git extension first, and runs `git remote -v` when that
+// ?repo=owner/name, or owner/name/folder when the open folder is one inside the repository, so
+// the suite shows that folder alone: a demo in a big repository's subfolder). It asks VS Code's own Git extension first, and runs `git remote -v` when that
 // has nothing to say yet: the Git extension opens repositories a moment after VS Code starts.
 // No VS Code here, so plain Node tests it: node --test "editors/vscode/test/*.test.js"
 
@@ -35,9 +36,16 @@ function githubRepo(url) {
   return `${owner}/${name}`;
 }
 
-/** The website's Team suite, connected to a repository. */
-function suiteUrl(slug, site = SITE) {
-  return `${String(site).replace(/\/+$/, "")}/suite.html?repo=${encodeURIComponent(slug)}`;
+/** The website's Team suite, connected to a repository, or to one folder of it. */
+function suiteUrl(slug, site = SITE, folder = "") {
+  const where = folder ? `${slug}/${folder}` : slug;
+  return `${String(site).replace(/\/+$/, "")}/suite.html?repo=${encodeURIComponent(where)}`;
+}
+
+/** A folder inside a repository as the website takes it ("demo/live"), or "" if it isn't one. */
+function cleanFolder(text) {
+  const parts = String(text || "").trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "").split("/");
+  return parts.every((p) => NAME.test(p) && p !== "." && p !== "..") ? parts.join("/") : "";
 }
 
 /** `git remote -v`'s lines (`origin<TAB>url (fetch)`) as `[{ name, fetchUrl, pushUrl }]`. */
@@ -72,6 +80,15 @@ function comparable(p, insensitive) {
   return insensitive ? s.toLowerCase() : s;
 }
 
+/** Where the folder is inside a repository's root: "demo/live", or "" at the root. */
+function inside(root, folderPath, platform) {
+  const insensitive = platform === "win32";
+  const at = comparable(root, insensitive);
+  const folder = comparable(folderPath, insensitive);
+  if (folder === at || !folder.startsWith(at + "/")) return "";
+  return cleanFolder(comparable(folderPath, false).slice(at.length + 1));   // the folder's own spelling
+}
+
 /** The repository whose root holds the folder; the deepest, when one repository is inside another. */
 function repositoryFor(repositories, folderPath, platform) {
   const insensitive = platform === "win32";
@@ -98,14 +115,23 @@ async function fromGitExtension(vscode, folderPath, platform) {
   const git = ext.isActive ? ext.exports : await ext.activate();
   const api = git && typeof git.getAPI === "function" ? git.getAPI(1) : null;
   const repo = repositoryFor(api && api.repositories, folderPath, platform);
-  return repo ? pickRemote(repo.state && repo.state.remotes) : null;
+  const picked = repo ? pickRemote(repo.state && repo.state.remotes) : null;
+  return picked && { ...picked, folder: inside(repo.rootUri.fsPath, folderPath, platform) };
 }
 
-/** What `git remote -v` says in the folder: `{ slug, remote }` or null. */
+/** What `git remote -v` (and `git rev-parse --show-prefix`, for the folder) say: `{ slug, remote,
+ * folder }` or null. */
 function fromGitCommand(run, folderPath) {
+  const opts = { cwd: folderPath, timeout: 10000, windowsHide: true };
   return new Promise((resolve) => {
-    run("git", ["remote", "-v"], { cwd: folderPath, timeout: 10000, windowsHide: true },
-      (err, stdout) => resolve(err ? null : pickRemote(parseRemotes(stdout))));
+    run("git", ["remote", "-v"], opts, (err, stdout) => {
+      const picked = err ? null : pickRemote(parseRemotes(stdout));
+      if (!picked) return resolve(null);
+      run("git", ["rev-parse", "--show-prefix"], opts, (err2, prefix) => {
+        const one = !err2 && /^[^\r\n]*\r?\n?$/.test(String(prefix || "")) ? String(prefix || "") : "";
+        resolve({ ...picked, folder: cleanFolder(one) });
+      });
+    });
   });
 }
 
@@ -128,7 +154,10 @@ async function detect({ vscode, folderPath, run = execFile, platform = process.p
       found = null;
     }
   }
-  return found ? { slug: found.slug, remote: found.remote, url: `https://github.com/${found.slug}` } : null;
+  if (!found) return null;
+  const out = { slug: found.slug, remote: found.remote, url: `https://github.com/${found.slug}` };
+  if (found.folder) out.folder = found.folder;
+  return out;
 }
 
 /** What the sidebar shows for what detect() found: `{ text, tip }`. */
@@ -137,7 +166,10 @@ function describe(found) {
     return { text: "No GitHub repository",
              tip: "This folder has no git remote on GitHub, so the Team suite can't connect to it on its own." };
   }
-  return { text: found.slug, tip: `${found.url}, from the "${found.remote}" remote` };
+  const folder = found.folder ? ` · ${found.folder}` : "";
+  return { text: found.slug + folder,
+           tip: `${found.url}, from the "${found.remote}" remote` +
+                (found.folder ? `; the Team suite shows ${found.folder} alone` : "") };
 }
 
 module.exports = { SITE, githubRepo, suiteUrl, parseRemotes, detect, describe };
