@@ -3,6 +3,9 @@
     magellan-lite check [PATH] [--against git:HEAD] [--format text|json|markdown] [--fail-on block]
     magellan-lite hook install [PATH] [--force]       check before every commit
     magellan-lite brief [PATH] [--against git:HEAD] [--format json|text] [--limit 8]
+    magellan-lite plan  [PATH] --edit FILE OLD NEW | --edits JSON   before a change: its worklist
+    magellan-lite progress [PATH]                     what is left of the plan
+    magellan-lite done  [PATH]                        finished? exit 1 if not (plan.py)
     magellan-lite rules
     magellan-lite share [PATH] [--remote origin]      publish your work in progress
     magellan-lite team  [PATH] [--remote origin]      check it against your teammates'
@@ -55,6 +58,25 @@ def build_parser() -> argparse.ArgumentParser:
                    help="entries per list (default: 8)")
     b.add_argument("--fail-on", choices=(*VERDICTS[1:], "never"), default="block",
                    help="exit 1 when the verdict is at least this (default: block)")
+
+    pl = sub.add_parser("plan", help="before a change: the edits you intend, checked in memory; "
+                                     "every other place that must change, with its code")
+    pl.add_argument("path", nargs="?", default=".", help="the project (default: here)")
+    pl.add_argument("--edit", nargs=3, action="append", default=[], metavar=("FILE", "OLD", "NEW"),
+                    help="replace OLD (text in FILE now, exactly once) with NEW; repeat for more")
+    pl.add_argument("--edits", metavar="JSON",
+                    help="the edits as JSON, [{\"path\", \"old\", \"new\"}, ...]: inline, a file, "
+                         "or - for stdin")
+    pl.add_argument("--against", default="git:HEAD", metavar="BASELINE",
+                    help="git:REV, or a directory holding the old version (default: git:HEAD)")
+    pl.add_argument("--format", choices=("text", "json"), default="text")
+    for name, what in (("progress", "what is left of the plan (planned edits not made yet are "
+                                    "applied in memory)"),
+                       ("done", "is the plan finished? if so, every line changed and what to "
+                                "recompile, for the report")):
+        st = sub.add_parser(name, help=what)
+        st.add_argument("path", nargs="?", default=".", help="the project (default: here)")
+        st.add_argument("--format", choices=("text", "json"), default="text")
 
     sub.add_parser("rules", help="list the checklist rules")
 
@@ -160,6 +182,20 @@ def main(argv: list[str] | None = None) -> int:
 
     from pathlib import Path
 
+    if args.command in ("plan", "progress", "done"):
+        from magellan_lite import plan
+        try:
+            if args.command == "plan":
+                edits = _edits(args)
+                result = plan.plan(args.path, edits, args.against)
+            else:
+                result = getattr(plan, args.command)(args.path)
+        except (plan.PlanError, GitError, ValueError, OSError) as exc:
+            print(f"magellan-lite: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(result, indent=2) if args.format == "json" else plan.text(result))
+        return 0 if args.command != "done" or result["done"] else 1
+
     if args.command == "brief":
         from magellan_lite import brief
         try:
@@ -195,3 +231,15 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(text(report, colour=wants_colour(sys.stdout)))
     return 1 if report.fails(args.fail_on or project.fail_on or "block") else 0
+
+
+def _edits(args) -> list[dict]:
+    """``--edit FILE OLD NEW`` (repeated) and ``--edits JSON`` (inline, a file, or -)."""
+    from pathlib import Path
+    edits = [{"path": f, "old": o, "new": n} for f, o, n in args.edit]   # several lines: --edits
+    if args.edits:
+        raw = sys.stdin.read() if args.edits == "-" else \
+            args.edits if args.edits.lstrip()[:1] in "[{" else Path(args.edits).read_text("utf-8")
+        given = json.loads(raw)
+        edits += [given] if isinstance(given, dict) else list(given)
+    return edits

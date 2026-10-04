@@ -11,6 +11,7 @@
 
   let feed = null, result = null, people = {};
   let mapMode = "3d", mapView = null;       // the project map: 3D (the whole project) or Flow
+  let sub = null;                           // a sub-graph shown in its place: { ids } or { file } (js/subgraph.js)
 
   // -- connecting ------------------------------------------------------------------------------
   function showError(text) {
@@ -21,6 +22,7 @@
   function start(repo, token) {
     showError("");
     if (feed) feed.stop();
+    sub = null;
     try {
       feed = MagellanTeam.connect({ repo, token, onStatus: status, onResult: show, onError: failed });
     } catch (err) {
@@ -171,7 +173,7 @@
       h("p", { class: "muted small" }, "Expect a merge conflict here. The whole-team map uses the first name's version."))] : []));
   }
 
-  // what a picked dot is: its place, who changed it, the findings in it
+  // what a picked dot is: its place, who changed it, the findings in it; and its sub-graph
   function pickPanel(box, node, report) {
     const here = (report.findings || []).filter((f) => f.path === node.path && f.line >= node.line);
     const by = node.by || [], reached = node.reached_by || [];
@@ -182,7 +184,46 @@
         ? `Reached by the change, ${plural(node.hops, "hop")} away (score ${node.score.toFixed(2)})` : "Used by the change"),
       by.length ? h("p", { class: "small" }, "Changed by ", ...by.flatMap((n, i) => [i ? " and " : "", dot(n), n])) : null,
       reached.length ? h("p", { class: "small" }, "Reached by ", reached.join(", "), "'s change") : null,
-      node.finding && here.length ? h("ul", { class: "findings" }, here.slice(0, 3).map(finding)) : null);
+      node.finding && here.length ? h("ul", { class: "findings" }, here.slice(0, 3).map(finding)) : null,
+      h("p", { class: "pick-actions" },
+        h("button", { type: "button", class: "button small-button", title: "It, what depends on it and what it uses, in the map's place",
+          onclick: () => showSub({ ids: [node.id] }) }, "Show sub-graph"),
+        node.path ? h("button", { type: "button", class: "button small-button", title: `Everything in ${node.path}, and what touches it`,
+          onclick: () => showSub({ file: node.path }) }, "Sub-graph of its file") : null));
+  }
+
+  // -- a sub-graph, in the map's place ------------------------------------------------------------
+  // Shown right here rather than sent to the Scene: the pick panel and the team's live updates
+  // stay beside it, and "← whole project" is one step back. "Open in the Scene" carries it
+  // along (#team/sub=<id>) for room and tabs.
+  function showSub(spec) {
+    sub = spec;
+    drawTeamMap();
+  }
+  $("map-back").addEventListener("click", () => {
+    sub = null;
+    drawTeamMap();
+    $("map-title").focus();                    // the button is gone: the keyboard lands on the map's name
+  });
+  $("map-title").tabIndex = -1;
+  const sceneLink = (spec) => (!spec ? "scene.html#team" : spec.file
+    ? `scene.html#team/file=${encodeURIComponent(spec.file)}` : `scene.html#team/sub=${encodeURIComponent(spec.ids[0])}`);
+
+  /** A dot picked on the map: its panel (the map's own node: a sub-graph's Flow redraws them). */
+  function pick(n, g) {
+    const box = $("team-map");
+    box.querySelectorAll(".picked").forEach((x) => x.classList.remove("picked"));
+    if (g) g.classList.add("picked");
+    pickPanel($("team-pick"), result.team.map.nodes.find((x) => x.id === n.id) || n, result.team);
+  }
+
+  /** The right-click menu on a dot. */
+  function menu(n, ev, g) {
+    pick(n, g);
+    MagellanSubgraphUI.menu(ev, n.label || n.id, [
+      { label: "Show sub-graph", run: () => showSub({ ids: [n.id] }) },
+      n.path && { label: "Sub-graph of its file", detail: n.path.split("/").pop(), run: () => showSub({ file: n.path }) },
+    ]);
   }
 
   // The project map: the whole project in 3D from the moment a repository is connected, each
@@ -191,21 +232,25 @@
     if (!result || !result.team) return;
     const box = $("team-map");
     const sharing = result.people.length;
-    $("map-title").textContent = sharing ? "Everyone at once" : "The project";
+    let part = sub && MagellanSubgraph.build(result.team.map, sub);
+    if (part && !part.nodes.length) { sub = null; part = null; }        // gone from the latest map
+    $("map-title").textContent = part ? MagellanSubgraph.title(part) : sharing ? "Everyone at once" : "The project";
+    $("map-note").textContent = part ? MagellanSubgraph.describe(part) : "";
+    $("map-note").hidden = !part;
+    $("map-back").hidden = !part;
+    $("map-scene").href = sceneLink(sub);
     $("map-views").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === mapMode)));
     box.classList.toggle("is-3d", mapMode === "3d");
     if (mapView && mapView.destroy) mapView.destroy();
+    const map = !part ? result.team.map : mapMode === "flow" ? MagellanSubgraph.flow(part) : part;
     const opts = {
       people: sharing ? people : null, animate: false,
-      label: sharing ? "Everyone's changes at once, and what they reach" : "The whole project",
-      onPick: (n, g) => {
-        box.querySelectorAll(".picked").forEach((x) => x.classList.remove("picked"));
-        if (g) g.classList.add("picked");
-        pickPanel($("team-pick"), n, result.team);
-      },
+      label: part ? MagellanSubgraph.title(part) : sharing ? "Everyone's changes at once, and what they reach" : "The whole project",
+      heads: part ? MagellanSubgraph.heads(part) : undefined,
+      onPick: pick,
+      onContext: menu,
     };
-    mapView = mapMode === "3d" ? MagellanScene3D.render(box, result.team.map, opts)
-      : MagellanMap.render(box, result.team.map, opts);
+    mapView = mapMode === "3d" ? MagellanScene3D.render(box, map, opts) : MagellanMap.render(box, map, opts);
   }
   $("map-views").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
     mapMode = b.dataset.view;

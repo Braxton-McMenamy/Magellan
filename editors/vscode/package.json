@@ -3,7 +3,7 @@
   "displayName": "Magellan Lite",
   "icon": "media/icon.png",
   "description": "Know what your change breaks before you commit it: the checklist where the damage lands, the verdict in the status bar, conflicts with your team's work in progress, and a map of what the change reaches. Python, Java, C, Fortran and COBOL. Nothing to install or set up.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "magellan-lite",
   "private": true,
   "preview": true,
@@ -19,12 +19,12 @@
   },
   "qna": false,
   "galleryBanner": {
-    "color": "#0d1520",
+    "color": "#0E2238",
     "theme": "dark"
   },
   "badges": [
     {
-      "url": "https://img.shields.io/badge/GitHub-Braxton--McMenamy%2FMagellan-0d1520?logo=github",
+      "url": "https://img.shields.io/badge/GitHub-Braxton--McMenamy%2FMagellan-0E2238?logo=github",
       "href": "https://github.com/Braxton-McMenamy/Magellan",
       "description": "Source on GitHub"
     },
@@ -310,7 +310,7 @@
   "scripts": {
     "sync": "node sync.js",
     "test": "node --test \"test/*.test.js\"",
-    "package": "node sync.js && node bundle.js && npx --yes @vscode/vsce package --skip-license",
+    "package": "node sync.js && node bundle.js && npx --yes @vscode/vsce package --no-dependencies --skip-license --baseContentUrl https://github.com/Braxton-McMenamy/Magellan/blob/HEAD/editors/vscode --baseImagesUrl https://github.com/Braxton-McMenamy/Magellan/raw/HEAD/editors/vscode",
     "bundle": "node bundle.js"
   }
 }

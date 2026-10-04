@@ -240,7 +240,7 @@ def project() -> dict:
     def ours(p: Path) -> bool:
         rel = p.relative_to(ROOT).parts
         return rel[0] in ("magellan_lite", "tests", "demo") and "polyglot" not in rel \
-            and "incidents" not in rel and "__pycache__" not in rel
+            and "incidents" not in rel and "live" not in rel and "__pycache__" not in rel
     files = {p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8")
              for p in sorted(ROOT.rglob("*.py")) if ours(p)}
     snap = Snapshot(files, "magellan_lite")

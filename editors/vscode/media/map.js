@@ -10,6 +10,9 @@
 // A team's map (web.team_live) says whose change each node is (`by`): pass
 // opts.people = MagellanMap.colours(names) to colour each person's changes their own colour.
 // opts.onPick(node) makes the nodes clickable (and reachable with Tab and Enter).
+// opts.onContext(node, event, el) hears a right-click on a node (or the menu key, or Shift+F10,
+// on the focused one): the page shows its menu there (js/subgraph-ui.js).
+// opts.heads renames the columns' headings, { 0: "picked" } for a sub-graph (js/subgraph.js).
 
 window.MagellanMap = (() => {
   const NS = "http://www.w3.org/2000/svg";
@@ -147,7 +150,7 @@ window.MagellanMap = (() => {
       class: "map", viewBox: `0 0 ${width} ${height}`, role: "img",
       "aria-label": opts.label || "The change and the code it reaches, hop by hop",
     });
-    const heads = narrow ? { "-1": "uses", 0: "change" } : { "-1": "what it uses", 0: "the change" };
+    const heads = { ...(narrow ? { "-1": "uses", 0: "change" } : { "-1": "what it uses", 0: "the change" }), ...(opts.heads || {}) };
     levels.forEach((lv, c) => {
       svg("text", { x: x0 + c * colW, y: 14, class: "col-head" }, root).textContent =
         heads[lv] || `${lv} hop${lv === 1 ? "" : "s"}${narrow ? "" : " away"}`;
@@ -194,14 +197,20 @@ window.MagellanMap = (() => {
           g.style.setProperty("--who2", opts.people[by[1]]);
         }
       }
-      if (opts.onPick) {
+      if (opts.onPick || opts.onContext) {
         g.classList.add("pickable");
         g.setAttribute("tabindex", "0");
         g.setAttribute("role", "button");
+      }
+      if (opts.onPick) {
         g.addEventListener("click", () => opts.onPick(n, g));
         g.addEventListener("keydown", (ev) => {
           if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); opts.onPick(n, g); }
         });
+      }
+      if (opts.onContext) {
+        g.setAttribute("aria-haspopup", "menu");
+        g.addEventListener("contextmenu", (ev) => { ev.preventDefault(); opts.onContext(n, ev, g); });
       }
       svg("circle", { r: 17, class: "halo" }, g);
       if (n.kind === "class") svg("rect", { x: -8, y: -8, width: 16, height: 16, rx: 4, class: "dot" }, g);

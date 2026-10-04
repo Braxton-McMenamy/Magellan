@@ -14,6 +14,9 @@ answered (no such definition, not a git repository) comes back as a tool result 
 ``isError`` and a JSON ``{"error": ...}`` saying why in plain words; an unknown tool or a
 malformed request is a JSON-RPC error.
 
+``magellan_lite_plan``    before a change: the edits intended, checked in memory; every other
+                          place to change with its code, and what was ruled out (plan.py)
+``magellan_lite_progress`` what is left of the plan; ``magellan_lite_done``: finished?
 ``magellan_lite_brief``   after an edit: ok / review / block, what to fix first, files to
                           re-read, tests to run (brief.py)
 ``magellan_lite_check``   the full report behind the brief, optionally with the code map
@@ -48,10 +51,13 @@ PROTOCOL = "2024-11-05"
 
 INSTRUCTIONS = (
     "Magellan Lite reads a project's code (Python, Java, C, C++, Fortran, COBOL, TypeScript) "
-    "without running it. Before changing a function, especially old code, call "
-    "magellan_lite_reach to see what depends on it. After editing, before committing or "
-    "saying you are done, call magellan_lite_brief: on block, fix do_first and call it again; "
-    "re-read check_these_files and run tests_to_run.")
+    "without running it. For a change that reaches many places (a signature, a record "
+    "layout), call magellan_lite_plan first with the edit you intend: it lists every other "
+    "place to change, with the code, and what it ruled out; then edit, call "
+    "magellan_lite_progress after each batch, and magellan_lite_done at the end. Before "
+    "changing a function, magellan_lite_reach shows what depends on it. After any edit, before "
+    "committing or saying you are done, call magellan_lite_brief: on block, fix do_first and "
+    "call it again; re-read check_these_files and run tests_to_run.")
 
 
 class ToolError(Exception):
@@ -169,6 +175,30 @@ def _check(root: Path, a: dict):
         from magellan_lite.web import code_map
         out["map"] = code_map(before, after, out)
     return out
+
+
+def _plan(root: Path, a: dict):
+    from magellan_lite.plan import PlanError, plan
+    edits = a.get("edits")
+    if isinstance(edits, dict):
+        edits = [edits]
+    if not isinstance(edits, list) or not all(isinstance(e, dict) for e in edits):
+        raise ToolError("edits must be a list of {path, old, new}: old is text in the file now "
+                        "(exactly once), new replaces it")
+    try:
+        return plan(root, edits, _against(root, a))
+    except PlanError as exc:
+        raise ToolError(str(exc)) from None
+
+
+def _stage(name: str):
+    def run(root: Path, a: dict):
+        from magellan_lite import plan
+        try:
+            return getattr(plan, name)(root)
+        except plan.PlanError as exc:
+            raise ToolError(str(exc)) from None
+    return run
 
 
 def _reach(root: Path, a: dict):
@@ -334,6 +364,42 @@ _BASELINE_HELP = ("Magellan Lite compares the working tree with a baseline. With
                   "holding the old version.")
 
 TOOLS: dict[str, dict] = {
+    "magellan_lite_plan": {
+        "description": "Call this first for a change that reaches many places (a signature, a "
+                       "record layout, a renamed or widened field), before editing anything. "
+                       "Give the edits you intend (usually just the definition: the new "
+                       "signature line, the new PIC); they are made in memory, checked against "
+                       "the last commit, and you get the worklist: every other place that must "
+                       "change with its code as written (calls inside INCLUDE files and through "
+                       "procedure arguments included), programs to recompile, uses that need "
+                       "nothing, and mentions of the same names that are not uses (comments, "
+                       "locals, look-alikes) with why. Work through it, then call "
+                       "magellan_lite_progress.",
+        "properties": {"path": _PATH, "against": _AGAINST,
+                       "edits": {"type": "array", "description": "The edits you intend.",
+                                 "items": {"type": "object", "properties": {
+                                     "path": {"type": "string",
+                                              "description": "File, relative to the project."},
+                                     "old": {"type": "string",
+                                             "description": "Text in the file now, exactly once."},
+                                     "new": {"type": "string", "description": "What replaces it."}},
+                                     "required": ["path", "old", "new"]}}},
+        "required": ["edits"], "run": _plan, "git_help": _BASELINE_HELP,
+    },
+    "magellan_lite_progress": {
+        "description": "After a batch of edits: what is left of the plan from magellan_lite_plan "
+                       "(planned edits you have not made yet are applied in memory, so the order "
+                       "of your work does not matter) and any new problem, each with its code. "
+                       "Call it until nothing is left, then magellan_lite_done.",
+        "properties": {"path": _PATH}, "run": _stage("progress"), "git_help": _BASELINE_HELP,
+    },
+    "magellan_lite_done": {
+        "description": "At the end: confirms every planned edit is made and nothing is left to "
+                       "change, and returns what a report needs: each file's changed lines, the "
+                       "places the plan listed, and the programs to recompile. If anything is "
+                       "left it says what.",
+        "properties": {"path": _PATH}, "run": _stage("done"), "git_help": _BASELINE_HELP,
+    },
     "magellan_lite_brief": {
         "description": "Call this after editing code, before committing or saying you are "
                        "done. Compares the working tree with the last commit (or `against`) and "

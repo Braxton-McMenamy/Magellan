@@ -58,7 +58,8 @@ CHANGE = {"app/pay.py": BASE["app/pay.py"].replace("def charge(amount):",
                                                     "def charge(amount, currency):")}
 TOOL_NAMES = {"magellan_lite_brief", "magellan_lite_check", "magellan_lite_reach",
               "magellan_lite_node", "magellan_lite_unused", "magellan_lite_team",
-              "magellan_lite_rules"}
+              "magellan_lite_rules", "magellan_lite_plan", "magellan_lite_progress",
+              "magellan_lite_done"}
 
 
 def request(id_, method, params=None) -> dict:

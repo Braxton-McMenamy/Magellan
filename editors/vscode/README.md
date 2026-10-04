@@ -7,7 +7,7 @@
 <p align="center"><b>Know what your change breaks before you commit it, even in the files you never opened.</b></p>
 
 <p align="center">
-  <a href="https://github.com/Braxton-McMenamy/Magellan"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Braxton--McMenamy%2FMagellan-0d1520?logo=github"></a>
+  <a href="https://github.com/Braxton-McMenamy/Magellan"><img alt="GitHub" src="https://img.shields.io/badge/GitHub-Braxton--McMenamy%2FMagellan-0E2238?logo=github"></a>
   <img alt="Languages" src="https://img.shields.io/badge/languages-Python%20%C2%B7%20Java%20%C2%B7%20C%20%C2%B7%20Fortran%20%C2%B7%20COBOL-2C4A6B">
   <img alt="Nothing to install" src="https://img.shields.io/badge/setup-nothing%20to%20install-f2a93b">
   <img alt="Runs locally" src="https://img.shields.io/badge/runs-100%25%20local-1f6f3a">
@@ -40,7 +40,7 @@ software failures on what it found, and gives the change one verdict: `ok`, `rev
 ## Quick start
 
 1. **Install the extension**: Extensions view → `...` → *Install from VSIX...* →
-   `magellan-lite-0.2.0.vsix`, or `code --install-extension magellan-lite-0.2.0.vsix`.
+   `magellan-lite-0.3.0.vsix`, or `code --install-extension magellan-lite-0.3.0.vsix`.
 2. **Open a project and save a change.** The verdict appears in the status bar a moment later,
    and each finding on its line. That's all: there is nothing to configure.
 3. **Open the map**: click the verdict, or run **Magellan Lite: Show the map**.
@@ -98,6 +98,10 @@ feel the change, hop by hop.
 - **The skull** lights up code nothing in the project uses: definitions whose name appears
   nowhere else. Decorated definitions, overrides and tests are left out, since something
   finds them without naming them.
+- **Sub-graphs:** right-click a dot (in either view) for **Show sub-graph**: it, what depends
+  on it two hops back and what it uses, in a tab of its own above the map, with its own camera
+  and both views. **Sub-graph of its file** does the same for everything in its file. The
+  first tab is the whole map; **[** and **]** switch, × closes.
 
 The same renderers draw the website's [Scene](https://magellan-code.pages.dev/scene.html) and
 [Team suite](https://magellan-code.pages.dev/suite.html).
@@ -107,7 +111,7 @@ The same renderers draw the website's [Scene](https://magellan-code.pages.dev/sc
 | command | what it does |
 |---|---|
 | **Magellan Lite: Check this change** | check now (it also runs on every save) |
-| **Magellan Lite: Show the map** | the map panel: verdict, Flow and 3D, the checklist |
+| **Magellan Lite: Show the map** | the map panel: verdict, Flow and 3D with their sub-graphs, the checklist |
 | **Magellan Lite: Share my work in progress with my team** | publish your working tree to `refs/wip/<you>` |
 | **Magellan Lite: Check against my team's work in progress** | what only your work plus a teammate's breaks |
 | **Magellan Lite: Open the Team suite** | the website's live team view, connected to this repository |
@@ -156,7 +160,7 @@ up on the next save.
 | `sidebar.js` | the sidebar's three views, the Activity Bar badge, the Explorer badges |
 | `lite.js` | what to do with Magellan Lite's JSON (no VS Code in it, so plain Node tests it) |
 | `panel.js`, `media/panel.*` | the map panel's page |
-| `media/map.js`, `media/graph3d.js`, `media/scene3d.js`, `media/map.css` | the website's Flow and 3D renderers, copied by `sync.js` (edit `site/`, then `npm run sync`) |
+| `media/map.js`, `media/graph3d.js`, `media/scene3d.js`, `media/subgraph*.js`, `media/map.css` | the website's Flow and 3D renderers and its sub-graphs, copied by `sync.js` (edit `site/`, then `npm run sync`) |
 | `media/walkthrough/` | the Get Started walkthrough's pages |
 | `bundle.js` | copies `magellan_lite/` into `engine/` when packaging (not committed) |
 | `test/` | `npm test`: the extension against a fake VS Code, a fake Python and a fake git |

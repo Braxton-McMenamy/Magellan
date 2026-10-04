@@ -572,14 +572,23 @@ def move_truncations(before: Graph, after: Graph, changed: set[str]) -> list[Fin
         if (s, t) not in old_moves or so is None or to is None:
             continue                          # a MOVE written in this change is deliberate
         osc, otc = _capacity(so), _capacity(to)
-        if osc is None or otc is None or (osc[0] == otc[0] and osc[1] > otc[1]):
-            continue                          # it already truncated before the change
+        if osc is None or otc is None:
+            continue
+        lost, was = sc[1] - tc[1], 0
+        if osc[0] == otc[0] and osc[1] > otc[1]:
+            # it already truncated before the change: taking a prefix of text is an idiom,
+            # but a number that now loses more of its high-order digits is the same bug,
+            # worse (a 6-digit edited field took 1 digit off a 7-digit balance; widened to
+            # 11, it takes 5)
+            was = osc[1] - otc[1]
+            if sc[0] != "digits" or lost <= was:
+                continue
         unit, what = sc[0], ("high-order digits" if sc[0] == "digits" else
                              "trailing characters")
-        lost = sc[1] - tc[1]
         out.append(Finding(
             rule="move-truncates", severity="high",
-            title=f"MOVE {sn.name} TO {tn.name} now drops {lost} {what}",
+            title=(f"MOVE {sn.name} TO {tn.name} now drops {lost} {what}"
+                   + (f" (it dropped {was} before)" if was else "")),
             detail=(f"{sn.name} holds {sc[1]} {unit} ({sn.meta.get('annotation', '')}) but "
                     f"{tn.name} holds {tc[1]} ({tn.meta.get('annotation', '')}); COBOL "
                     f"truncates the {what} without an error, so the value is silently "
