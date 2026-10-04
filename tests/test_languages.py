@@ -99,5 +99,52 @@ class Languages(unittest.TestCase):
         self.assertEqual(declared, set(languages.SUFFIXES))
 
 
+class FoundByTheModernizationExperiment(unittest.TestCase):
+    """Three places a legacy upgrade went unchecked, found by two agents racing on a ticket."""
+
+    def test_fortran_a_routine_passed_as_an_argument_is_followed_into_its_calls(self):
+        sub = "      SUBROUTINE INTRST(P, R, D, X)\n      REAL P, R, D, X\n      X = P * R * D / 360.0\n      END\n"
+        apply = ("      SUBROUTINE APPLY(FN, P, R, D, X)\n      EXTERNAL FN\n      REAL P, R, D, X\n"
+                 "      CALL FN(P, R, D, X)\n      END\n")
+        batch = ("      SUBROUTINE BATCH(P, R, D, X)\n      REAL P, R, D, X\n      EXTERNAL INTRST\n"
+                 "      CALL APPLY(INTRST, P, R, D, X)\n      END\n")
+        new = sub.replace("(P, R, D, X)\n      REAL P, R, D, X\n", "(P, R, D, X, B)\n      REAL P, R, D, X, B\n")
+        r = check_files({"interest.f": sub, "apply.f": apply, "batch.f": batch},
+                        {"interest.f": new, "apply.f": apply, "batch.f": batch})
+        self.assertEqual(rules(r), [("signature-break", "apply.f")])
+        self.assertEqual(r.findings[0].line, 4)
+        self.assertIn("through its procedure argument FN", r.findings[0].message)
+        # a wrapper with the old argument list is the fix, and then nothing is left to report
+        fixed = batch.replace("EXTERNAL INTRST", "EXTERNAL INT360").replace("APPLY(INTRST", "APPLY(INT360") + \
+            "      SUBROUTINE INT360(P, R, D, X)\n      REAL P, R, D, X\n      CALL INTRST(P, R, D, X, 360.0)\n      END\n"
+        r = check_files({"interest.f": sub, "apply.f": apply, "batch.f": batch},
+                        {"interest.f": new, "apply.f": apply, "batch.f": fixed})
+        self.assertNotIn("signature-break", [f.rule for f in r.findings])
+
+    COPY = "       01 ACCT-REC.\n           05 ACCT-BAL      PIC S9(7)V99.\n"
+
+    def program(self, copy, field, move):
+        return ("       IDENTIFICATION DIVISION.\n       PROGRAM-ID. P1.\n       DATA DIVISION.\n"
+                f"       WORKING-STORAGE SECTION.\n           {copy}\n       01 {field}.\n"
+                f"       PROCEDURE DIVISION.\n       MAIN-PARA.\n           {move}\n           STOP RUN.\n")
+
+    def widened(self, program):
+        before = {"ACCTREC.cpy": self.COPY, "P1.cbl": program}
+        after = {**before, "ACCTREC.cpy": self.COPY.replace("S9(7)V99", "S9(11)V99")}
+        return [(f.rule, f.message) for f in check_files(before, after).findings if f.rule == "move-truncates"]
+
+    def test_cobol_a_prefix_replaced_by_copy_replacing_still_counts(self):
+        # ==ACCT-== can't be a whole COBOL word (none ends in a hyphen): it is a prefix
+        p = self.program("COPY ACCTREC REPLACING ==ACCT-== BY ==ARC-==.", "ARC-OUT PIC S9(7)V99",
+                         "MOVE ARC-BAL TO ARC-OUT.")
+        self.assertEqual(self.widened(p), [("move-truncates", "MOVE ARC-BAL TO ARC-OUT now drops 4 high-order digits")])
+
+    def test_cobol_an_edited_picture_counts_its_digits_to_the_decimal_point(self):
+        p = self.program("COPY ACCTREC.", "PRT-BAL PIC -Z,ZZZ,ZZ9.99", "MOVE ACCT-BAL TO PRT-BAL.")
+        self.assertEqual(self.widened(p), [("move-truncates", "MOVE ACCT-BAL TO PRT-BAL now drops 4 high-order digits")])
+        wide = self.program("COPY ACCTREC.", "PRT-BAL PIC -ZZ,ZZZ,ZZZ,ZZ9.99", "MOVE ACCT-BAL TO PRT-BAL.")
+        self.assertEqual(self.widened(wide), [])
+
+
 if __name__ == "__main__":
     unittest.main()

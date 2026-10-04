@@ -498,15 +498,22 @@ def legacy(before: Graph, after: Graph, cs: ChangeSet) -> list[Finding]:
 # MOVE into a field the change left too small
 # --------------------------------------------------------------------------
 def _digits(pic: str) -> int | None:
-    """Integer digits of a numeric PIC (``9(11)V99`` -> 11), or None if not numeric."""
+    """Integer digits of a numeric PIC (``9(11)V99`` -> 11, ``-Z,ZZZ,ZZ9.99`` -> 7, a floating
+    ``--,--9`` -> 4), or None if not numeric."""
     import re
-    p = pic.upper().replace(" ", "")
+    p = pic.upper().replace(" ", "").rstrip(".")
     if not p or any(c in p for c in "XAN"):
         return None
-    integer = p.split("V", 1)[0]
+    # the integer part ends at the assumed decimal point (V) or, in an edited picture, at the
+    # actual one (.); counting past it took the cents for digits
+    integer = re.split(r"[V.]", p, maxsplit=1)[0]
     total = 0
     for m in re.finditer(r"([9ZP*])(?:\((\d+)\))?", integer):
         total += int(m.group(2) or 1)
+    for sym in "+-$":                         # a floating sign or currency: n symbols, n - 1 digits
+        n = sum(int(m.group(1) or 1) for m in re.finditer(re.escape(sym) + r"(?:\((\d+)\))?", integer))
+        if n >= 2:
+            total += n - 1
     return total or None
 
 
