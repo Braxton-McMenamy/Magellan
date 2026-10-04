@@ -230,7 +230,7 @@ goes; `git grep -n "TODO("` lists them.
 | Engine | Brayton | The map, diff and blast radius; renames; `signature-break`, `removed-still-referenced`; the other languages (`languages.py`, `polyglot/`); the rules (the five famous-failure rules, the starter rules, the fifteen ported from the full Magellan); `brief` and the MCP server; team checks | |
 | The extension's core | Brayton | Nothing to set up (`python.js`), the repository from git (`repo.js`), the sidebar, the walkthrough, the extension page | |
 | Website | Braxton | The hero, the famous-failure player (opens from `#incident=<name>`), the checklist, Try it (with a Share link), the Team suite, Copy buttons, the favicon, other languages in the browser | Keep the Team section's lines true (`TODO(starter)` in `site/index.html`) |
-| Quality, QoL and graphs | Faidh | Status bar colours, `showLow`, the icon; `--format markdown`, `hook install`, `[tool.magellan-lite]` settings, `# magellan: ignore[rule]`, colour, the PR comment bot; the 3D map, the Flow/3D panel, the skull, the Scene | A screenshot of a squiggle for the extension page (`TODO(faidh) 4` in `editors/vscode/README.md`) |
+| Quality, QoL and graphs | Faidh | Status bar colours, `showLow`, the icon; `--format markdown`, `hook install`, `[tool.magellan-lite]` settings, `# magellan: ignore[rule]`, colour, the PR comment bot; the 3D map, the Flow/3D panel, the skull, the Scene | |
 
 ## Layout
 

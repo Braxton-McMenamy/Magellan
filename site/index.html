@@ -171,15 +171,15 @@ magellan-lite team             # what only your work + theirs breaks</pre>
       <div class="cards two">
         <article class="card">
           <h3>Install it</h3>
-          <p><a class="button primary" href="downloads/magellan-lite-0.3.1.vsix" download>Download
-            Magellan Lite 0.3.1</a></p>
+          <p><a class="button primary" href="downloads/magellan-lite.vsix" download>Download
+            Magellan Lite 0.3.2</a></p>
           <p>Then in VS Code: Extensions, the <code>...</code> menu, <strong>Install from
             VSIX...</strong>, and pick the file. Or paste one line in a terminal: it finds the file
             (here, in Downloads or on the Desktop), downloads it if it isn't there, and installs
             it. Windows PowerShell:</p>
-          <pre class="code">$ProgressPreference='SilentlyContinue'; $f = (Get-ChildItem $PWD, "$HOME\Downloads", "$HOME\Desktop" -Filter 'magellan-lite-*.vsix' -EA 0 | Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName; if (!$f) { $f = "$env:TEMP\magellan-lite.vsix"; Invoke-WebRequest https://magellan-code.pages.dev/downloads/magellan-lite-0.3.1.vsix -OutFile $f }; code --install-extension $f --force</pre>
+          <pre class="code">$ProgressPreference='SilentlyContinue'; $f = (Get-ChildItem $PWD, "$HOME\Downloads", "$HOME\Desktop" -Filter 'magellan-lite*.vsix' -EA 0 | Sort-Object LastWriteTime -Desc | Select-Object -First 1).FullName; if (!$f) { $f = "$env:TEMP\magellan-lite.vsix"; Invoke-WebRequest https://magellan-code.pages.dev/downloads/magellan-lite.vsix -OutFile $f }; code --install-extension $f --force</pre>
           <p>macOS or Linux:</p>
-          <pre class="code">f=$(ls -t ./magellan-lite-*.vsix ~/Downloads/magellan-lite-*.vsix ~/Desktop/magellan-lite-*.vsix 2&gt;/dev/null | head -1); [ -n "$f" ] || { f=/tmp/magellan-lite.vsix; curl -fsSL -o "$f" https://magellan-code.pages.dev/downloads/magellan-lite-0.3.1.vsix; }; code --install-extension "$f" --force</pre>
+          <pre class="code">f=$(ls -t ./magellan-lite*.vsix ~/Downloads/magellan-lite*.vsix ~/Desktop/magellan-lite*.vsix 2&gt;/dev/null | head -1); [ -n "$f" ] || { f=/tmp/magellan-lite.vsix; curl -fsSL -o "$f" https://magellan-code.pages.dev/downloads/magellan-lite.vsix; }; code --install-extension "$f" --force</pre>
         </article>
         <article class="card">
           <h3>Then</h3>
@@ -199,9 +199,6 @@ magellan-lite team             # what only your work + theirs breaks</pre>
 
     <section id="team" aria-labelledby="team-title">
       <h2 id="team-title">Team</h2>
-      <!-- TODO(starter): keep each line true to what you built as the project grows.
-           Plain HTML: change the text inside each <h3> and <p> below. Open index.html in a
-           browser to see it (refresh after saving). -->
       <div class="cards three">
         <article class="card person"><h3>Brayton</h3><p class="muted">The engine and backend (map, diff, blast radius), the local server and the VS Code extension</p></article>
         <article class="card person"><h3>Braxton</h3><p class="muted">The website</p></article>
