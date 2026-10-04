@@ -28,6 +28,19 @@ from magellan_lite.rules import loops  # noqa: F401      loop-without-progress: 
 from magellan_lite.rules import regexes  # noqa: F401    regex-catastrophic-backtracking: Cloudflare
 from magellan_lite.rules import threads  # noqa: F401    unsynchronized-shared-state: Therac-25
 
+# Ported from the full Magellan's checklist: the generic ones worth stopping a commit for.
+from magellan_lite.rules import undefined_names  # noqa: F401  undefined-name: a NameError left behind
+from magellan_lite.rules import deps  # noqa: F401       dependency-undeclared / -removed-still-used
+from magellan_lite.rules import taint  # noqa: F401      unvalidated-input-reaches-sink
+from magellan_lite.rules import envvars  # noqa: F401    env-var-renamed / env-var-default-changed
+from magellan_lite.rules import recursion  # noqa: F401  recursive-cycle: recursion with no end
+from magellan_lite.rules import cost  # noqa: F401       complexity-regression: newly quadratic
+from magellan_lite.rules import imports  # noqa: F401    import-cycle: modules importing each other
+from magellan_lite.rules import cochange  # noqa: F401   co-change: git history's usual partner
+from magellan_lite.rules import deadcode  # noqa: F401   unreachable-code / constant-condition
+from magellan_lite.rules import exceptions  # noqa: F401  swallowed-exception: except Exception: pass
+from magellan_lite.rules import newcode  # noqa: F401    near-duplicate / new-unreferenced
+
 # TODO(checklist): make the famous-failure rules see more. Each has a test file in
 #   tests/rules/ to add your case to; `python demo/run.py` must stay all caught, and after
 #   any rule change run `python demo/build_site.py` (the website shows the rules' results).
