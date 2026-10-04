@@ -4,8 +4,6 @@ from tests.rules.checks import found
 
 RULE = "assert-on-tuple"
 
-
-@unittest.skip("TODO(starter): delete this line once magellan_lite/rules/assert_tuple.py is written")
 class AssertOnTuple(unittest.TestCase):
     def test_an_assert_on_a_tuple_is_flagged(self):
         [f] = found(RULE, """

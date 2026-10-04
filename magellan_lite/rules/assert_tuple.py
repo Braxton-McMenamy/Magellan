@@ -23,6 +23,8 @@ import ast
 from magellan_lite.findings import rule  # noqa: F401
 
 
-# @rule("assert-on-tuple", "medium", fix='Drop the parentheses: `assert x, "message"`.')
+@rule("assert-on-tuple", "medium", fix='Drop the parentheses: `assert x, "message"`.')
 def assert_on_tuple(tree: ast.Module, path: str):
-    return []   # TODO(starter): replace this line (see the steps above)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assert) and isinstance(node.test, ast.Tuple) and node.test.elts:
+            yield node, "This assert checks a tuple, which is always true"

@@ -4,8 +4,6 @@ from tests.rules.checks import found
 
 RULE = "bare-except"
 
-
-@unittest.skip("TODO(starter): delete this line once magellan_lite/rules/bare_except.py is written")
 class BareExcept(unittest.TestCase):
     def test_a_bare_except_is_flagged_at_its_line(self):
         [f] = found(RULE, """

@@ -26,6 +26,11 @@ import ast
 from magellan_lite.findings import rule  # noqa: F401
 
 
-# @rule("compare-to-none", "low", fix="Use `is None` / `is not None`.")
+@rule("compare-to-none", "low", fix="Use `is None` / `is not None`.")
 def compare_to_none(tree: ast.Module, path: str):
-    return []   # TODO(starter): replace this line (see the steps above)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Compare):
+            for op, right in zip(node.ops, node.comparators):
+                if isinstance(op, (ast.Eq, ast.NotEq)) and isinstance(right, ast.Constant) and right.value is None:
+                    yield node, "compare with None using `is` / `is not`, not `==` / `!=`"
+

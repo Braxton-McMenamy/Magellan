@@ -23,6 +23,10 @@ import ast
 from magellan_lite.findings import rule  # noqa: F401
 
 
-# @rule("bare-except", "low", fix="Catch what you expect, e.g. `except ValueError:`.")
+@rule("bare-except", "low", fix="Catch what you expect, e.g. `except ValueError:`.")
 def bare_except(tree: ast.Module, path: str):
-    return []   # TODO(starter): replace this line (see the steps above)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ExceptHandler) and node.type is None:
+            yield node, "a bare `except:` also catches Ctrl+C and SystemExit"
+
+
